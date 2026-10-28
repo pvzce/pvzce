@@ -158,7 +158,7 @@ public final class PvzcePackets {
     // 63: fusion level payload uses a drop multiplier and the ordinary shovel slot.
     // 64: fusion can request random filling from complete, affordable backpack recipes.
     // 66: save prompts report failed loads without entering a level or disconnecting.
-    public static final int PROTOCOL_VERSION = 66;
+    public static final int PROTOCOL_VERSION = 67;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
@@ -269,11 +269,21 @@ public final class PvzcePackets {
     public static final int C2S_WORKSHOP_SESSION = 39;
     public static final int S2C_WORKSHOP_SESSION = S2C_BASE + 35;
 
+    public static final int C2S_ROOM = 40;
+    public static final int S2C_ROOM = S2C_BASE + 36;
+    public static final int S2C_CONTENT = S2C_BASE + 37;
+
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
     }
 
     private static final List<Definition> DEFINITIONS = List.of(
+            def(C2S_ROOM, ConnectionDirection.SERVERBOUND, com.pvzce.common.network.packet.RoomC2S.class,
+                    com.pvzce.common.network.packet.RoomC2S::decode),
+            def(S2C_ROOM, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.RoomS2C.class,
+                    com.pvzce.common.network.packet.RoomS2C::decode),
+            def(S2C_CONTENT, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.ContentS2C.class,
+                    com.pvzce.common.network.packet.ContentS2C::decode),
             def(C2S_WORKSHOP_SESSION, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.WorkshopSessionC2S.class,
                     com.pvzce.common.network.packet.WorkshopSessionC2S::decode),

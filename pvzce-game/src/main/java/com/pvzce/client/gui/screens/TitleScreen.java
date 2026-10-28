@@ -108,6 +108,10 @@ public final class TitleScreen extends Screen {
                 () -> client.openScreen(new SettingsScreen(client)));
         addEntry(Entry.QUIT, GuiLang.raw("gui.pvzce.title.quit", "退出"),
                 () -> client.window().requestClose());
+        Canvas left = layout.left();
+        addWidget(new Button(Math.round(left.x(16)), Math.round(left.y(512)),
+                Math.round(left.scaled(180)), Math.round(left.scaled(42)), "多人游戏",
+                () -> client.openScreen(new MultiplayerScreen(client))).style(Button.Style.SEED_CHOOSER));
     }
 
     private void addEntry(Entry entry, String label, Runnable action) {

@@ -5,4 +5,6 @@ public interface PacketTransport {
     void send(byte[] data);
 
     byte[] poll();
+
+    default boolean isClosed() { return false; }
 }

@@ -105,6 +105,7 @@ public final class Connection implements AutoCloseable {
                 return;
             }
             if (data == null) {
+                if (receiveTransport.isClosed()) disconnect("对端已关闭连接");
                 return;
             }
             if (!handle(data)) {

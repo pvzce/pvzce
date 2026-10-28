@@ -526,7 +526,12 @@ final public class SmokeDriver {
     }
 
     boolean openNamedScreen(String smokeScreen) {
-        if ("workshop".equals(smokeScreen)) {
+        if ("multiplayer".equals(smokeScreen)) {
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(client));
+        } else if ("multiplayer_room".equals(smokeScreen)) {
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(client));
+            client.hostMultiplayer(0, false);
+        } else if ("workshop".equals(smokeScreen)) {
             var menu=new com.pvzce.client.gui.screens.TitleScreen(client);
             client.setScreenReplacing(menu); menu.initIfNeeded();
             String label=com.pvzce.client.gui.GuiLang.raw("gui.pvzce.workshop.title", "创意工坊");

@@ -143,6 +143,7 @@ final class VersusClientMechanic implements ClientMechanic {
     /** Who is on the other end, and what they last spent their sun on. */
     private static String opponentLine(VersusMechanic.State state) {
         String who = switch (state.opponentStatus()) {
+            case 3 -> "对手：玩家";
             case 1 -> GuiLang.raw("gui.pvzce.versus.opponent.jev", "对手：Jev");
             case 2 -> GuiLang.raw("gui.pvzce.versus.opponent.fallback",
                     "对手：内置策略（Jev 未响应）");

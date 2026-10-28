@@ -143,7 +143,7 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         // The handicap is the plant opponent's, and only while it *is* the opponent: the same level
         // played from the plant side gives the player the level's own 400 and its own sky rate.
         Team ai = aiTeam(level);
-        boolean plantIsTheAi = plant != null && ai == plant;
+        boolean plantIsTheAi = !level.humanVersus() && plant != null && ai == plant;
         if (plant != null && data.plantInitialSun() > 0) {
             plant.addResource(PvzceIds.SUN, plantIsTheAi
                     ? scaleSun(data.plantInitialSun(), Math.max(100, data.plantAiInitialSunPercent()))
@@ -168,6 +168,14 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
     public void tick(LevelServer level, VersusData data) {
         Run run = run(level);
         payTheZombieSide(level, data, run);
+        if (level.humanVersus()) {
+            if (data.races() && run.collected >= data.sunGoal()) level.plantGoalReached();
+            if (level.tickCount() % 20 == 0 || run.collected != run.sentCollected) {
+                run.sentCollected = run.collected;
+                sendState(level, data, null);
+            }
+            return;
+        }
         level.jevBrain().tick(level, data);
         if (data.races() && run.collected >= data.sunGoal()) {
             level.plantGoalReached();
@@ -249,7 +257,7 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
      * balance still moves on the server, which is what its decisions are made from.
      */
     private static void publishIfHuman(LevelServer level, Team team) {
-        if (team.id().equals(level.humanTeamId())) {
+        if (level.humanVersus() || team.id().equals(level.humanTeamId())) {
             level.send(new ResourceDeltaS2C(team.id().toString(), PvzceIds.SUN.toString(),
                     team.resourcesOf(PvzceIds.SUN)));
         }
@@ -302,6 +310,12 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
     @Override
     public void sendState(LevelServer level, VersusData data, LevelServer.ServerBridge bridge) {
         Run run = run(level);
+        if (level.humanVersus()) {
+            level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_VERSUS, State.CODEC,
+                    new State(data.sunGoal(), run.collected, opponentSide(level), 3,
+                            "", -1, -1, opponentSun(level), List.of(), "", false)));
+            return;
+        }
         JevBrain brain = level.jevBrain();
         level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_VERSUS, State.CODEC,
                 new State(data.sunGoal(), run.collected, opponentSide(level), brain.status().ordinal(),

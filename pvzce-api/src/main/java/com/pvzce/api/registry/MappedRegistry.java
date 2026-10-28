@@ -82,6 +82,28 @@ public class MappedRegistry<T> implements Registry<T> {
         return copy;
     }
 
+    /** Temporarily installs a validated remote view while preserving the exact local reload baseline. */
+    public Runnable installSnapshot(Map<Identifier, T> entries, Map<Identifier, Set<Identifier>> remoteTags) {
+        MappedRegistry<T> previous = new MappedRegistry<>(key);
+        previous.copyContentsFrom(this);
+        byId.clear(); byKey.clear(); keyByValue.clear(); idByValue.clear(); dynamicKeys.clear(); tags.clear();
+        entries.forEach((id, value) -> putInternal(id, value, true));
+        remoteTags.forEach((id, ids) -> bindTag(TagKey.create(key, id), ids));
+        frozen = true;
+        return () -> copyContentsFrom(previous);
+    }
+
+    private void copyContentsFrom(MappedRegistry<T> source) {
+        byId.clear(); byId.addAll(source.byId);
+        byKey.clear(); byKey.putAll(source.byKey);
+        keyByValue.clear(); keyByValue.putAll(source.keyByValue);
+        idByValue.clear(); idByValue.putAll(source.idByValue);
+        dynamicKeys.clear(); dynamicKeys.addAll(source.dynamicKeys);
+        tags.clear(); tags.putAll(source.tags);
+        frozen = source.frozen;
+        everFrozen = source.everFrozen;
+    }
+
     public void clearDynamic() {
         if (frozen) {
             throw new IllegalStateException("Registry is frozen");

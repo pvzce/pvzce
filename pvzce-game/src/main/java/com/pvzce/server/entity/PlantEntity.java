@@ -481,7 +481,7 @@ public class PlantEntity extends PvzceEntity {
         var state = new com.pvzce.common.network.packet.PlantCareS2C(id(), fertilizedTicks > 0, laddered);
         if (full || !state.equals(lastCare)) {
             bridge.send(state);
-            lastCare = state;
+            if (!full) lastCare = state;
         }
     }
 

@@ -191,7 +191,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public void seedRandom(long seed) {
         random.setSeed(seed);
     }
-    private final PvzcePlayer plantPlayer;
+    private PvzcePlayer plantPlayer;
     /**
      * The opponent's card bar, or {@code null} on every level whose second side has no deck.
      *
@@ -600,9 +600,22 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, randomSeed, null);
     }
 
+    public LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                       List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
+                       Identifier requestedTeam, boolean humanVersus) {
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, null, requestedTeam, humanVersus);
+    }
+
     private LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
                         List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
                         Long randomSeed, Identifier requestedTeam) {
+        this(def, selectedSlots, seedContext, selectedBuffs, ownsCard, randomSeed, requestedTeam, false);
+    }
+
+    private LevelServer(LevelDef def, List<Identifier> selectedSlots, SeedContext seedContext,
+                        List<Identifier> selectedBuffs, java.util.function.Predicate<Identifier> ownsCard,
+                        Long randomSeed, Identifier requestedTeam, boolean humanVersus) {
+        this.humanVersus = humanVersus;
         if (randomSeed != null) random.setSeed(randomSeed);
         this.def = def;
         this.ownsCard = ownsCard == null ? card -> true : ownsCard;
@@ -2875,6 +2888,96 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     // Tick
     // ------------------------------------------------------------------
 
+    /** A seat owns its hand and ordinary deck; a self-dealt bar belongs to the team. */
+    private final Map<String, Participant> participants = new java.util.LinkedHashMap<>();
+    private String activeParticipant = "host";
+    private boolean humanVersus;
+
+    private record Participant(PvzcePlayer player, com.pvzce.server.level.cardsource.CardSource source,
+                               List<Identifier> cards, Identifier team, int plant, long vase,
+                               Identifier vaseCard, int timeout, int held) { }
+
+    private Participant captureParticipant() {
+        return new Participant(plantPlayer, cardSource, selectedCards, humanTeamId,
+                carriedPlantId, carriedVaseFrom, carriedVaseCard, carryTimeoutTicks, heldCardDropId);
+    }
+
+    private void installParticipant(Participant p) {
+        plantPlayer = p.player(); cardSource = p.source(); selectedCards = p.cards(); humanTeamId = p.team();
+        carriedPlantId = p.plant(); carriedVaseFrom = p.vase(); carriedVaseCard = p.vaseCard();
+        carryTimeoutTicks = p.timeout(); heldCardDropId = p.held();
+    }
+
+    public void addParticipant(String id, Identifier team, List<Identifier> cards) {
+        if (participants.containsKey(id)) return;
+        Team target = teams.get(team);
+        if (target == null) throw new IllegalArgumentException("Unknown participant team " + team);
+        PvzcePlayer player = new PvzcePlayer(target);
+        var source = cardSource.dealsItsOwnCards() && team.equals(humanTeamId) ? cardSource
+                : new com.pvzce.server.level.cardsource.DeckCardSource(
+                        new com.pvzce.server.level.cardsource.CardSource.Context(player, def, cards, random, this));
+        if (source == cardSource) player = plantPlayer;
+        participants.put(id, new Participant(player, source, List.copyOf(cards), team, -1, -1L, null, 0, -1));
+    }
+
+    /** All callers run on the owning server thread. Existing action rules see this explicit seat. */
+    public void asParticipant(String id, ServerBridge target, Runnable action) {
+        if (id.equals("host")) { action.run(); return; }
+        Participant p = participants.get(id);
+        if (p == null) throw new IllegalStateException("Participant has not entered the level: " + id);
+        Participant previous = captureParticipant();
+        parkedHost = previous;
+        if (p.team().equals(previous.team()) && previous.source().dealsItsOwnCards())
+            p = new Participant(previous.player(), previous.source(), p.cards(), p.team(), p.plant(), p.vase(), p.vaseCard(), p.timeout(), p.held());
+        else if (p.source().dealsItsOwnCards() && !previous.source().dealsItsOwnCards()) {
+            PvzcePlayer own = new PvzcePlayer(teams.get(p.team()));
+            var source = new com.pvzce.server.level.cardsource.DeckCardSource(
+                    new com.pvzce.server.level.cardsource.CardSource.Context(own, def, p.cards(), random, this));
+            p = new Participant(own, source, p.cards(), p.team(), p.plant(), p.vase(), p.vaseCard(), p.timeout(), p.held());
+        }
+        String previousId = activeParticipant;
+        ServerBridge previousBridge = bridge, previousOutbound = outbound;
+        activeParticipant = id;
+        installParticipant(p);
+        this.bridge = target;
+        try { action.run(); }
+        finally {
+            participants.put(id, captureParticipant());
+            installParticipant(previous);
+            activeParticipant = previousId;
+            parkedHost = null;
+            this.bridge = previousBridge; outbound = previousOutbound;
+            if (winner != null) gameState = winner.equals(humanTeamId) ? GameStateS2C.WON : GameStateS2C.LOST;
+        }
+    }
+
+    public void tickParticipant(String id, ServerBridge target) {
+        asParticipant(id, target, () -> {
+            tickCarry();
+            if (!cardSource.dealsItsOwnCards()) cardSource.tick(this, target, tickCount);
+        });
+    }
+
+    public void removeParticipant(String id, ServerBridge target) {
+        if (!participants.containsKey(id)) return;
+        asParticipant(id, target, () -> { releaseHeldCard(target); clearCarry(); });
+        participants.remove(id);
+    }
+
+    private boolean reservedByOther(int entityId, long vase) {
+        if (!activeParticipant.equals("host")) {
+            // The host state is parked while a guest action executes.
+            Participant host = parkedHost;
+            if (host != null && (entityId >= 0 && host.plant() == entityId || vase >= 0 && host.vase() == vase)) return true;
+        }
+        return participants.entrySet().stream().anyMatch(e -> !e.getKey().equals(activeParticipant)
+                && (entityId >= 0 && e.getValue().plant() == entityId || vase >= 0 && e.getValue().vase() == vase));
+    }
+    private Participant parkedHost;
+
+    public boolean humanVersus() { return humanVersus; }
+    public void setHumanVersus(boolean enabled) { humanVersus = enabled; }
+
     public interface ServerBridge {
         void send(PvzcePacket packet);
     }
@@ -4434,14 +4537,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      *         duplicated packet, which is dropped rather than treated as a restart)
      */
     public boolean reselectCards(List<Identifier> newCards, ServerBridge bridge) {
+        return reselectCards(newCards, bridge, true);
+    }
+
+    public boolean reselectCards(List<Identifier> newCards, ServerBridge bridge, boolean advanceRound) {
         if (!rounds || plantPlayer == null || !waves.pendingRoundClear()) {
             return false;
         }
         this.selectedCards = List.copyOf(newCards);
         rebuildCardBar();
         syncAllSlots();
-        LOGGER.info("Round {} begins with {} cards", waves.round() + 1, selectedCards.size());
-        beginNextRound(bridge);
+        LOGGER.info("Round {} receives {} cards", waves.round() + 1, selectedCards.size());
+        if (advanceRound) beginNextRound(bridge);
         return true;
     }
 
@@ -6174,6 +6281,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 return true;
             }
             drop.setHeld(true);
+            bridge.send(new EntityDespawnS2C(drop.id()));
             heldCardDropId = drop.id();
             bridge.send(new HeldCardS2C(drop.id(), drop.card().toString()));
             bridge.send(new ServerMessageS2C("捡起了 " + plant.id() + "，点草坪把它种下去。"));
@@ -6246,6 +6354,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 return false;
             }
             drop.setHeld(false);
+            bridge.send(drop.spawnPacket());
+            bridge.send(drop.attributePacket());
             clearHeldCard(bridge);
             return true;
         });
@@ -6438,6 +6548,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("这一格没有植物。"));
             return false;
         }
+        if (reservedByOther(plant.id(), -1)) {
+            bridge.send(new ServerMessageS2C("另一位玩家正在搬运这株植物。"));
+            return false;
+        }
         carriedPlantId = plant.id();
         carryTimeoutTicks = CARRY_TIMEOUT_TICKS;
         send(new CarrySyncS2C(plant.def().id().toString()));
@@ -6463,6 +6577,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * is all the drop needs to move the vase and its contents together.
      */
     private boolean liftVase(int x, int y) {
+        if (reservedByOther(-1, cellKey(x, y))) return false;
         carriedVaseFrom = cellKey(x, y);
         carriedVaseCard = vaseContents.get(carriedVaseFrom);
         carryTimeoutTicks = CARRY_TIMEOUT_TICKS;
@@ -6682,17 +6797,29 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         return result;
     }
 
+    /** Entry audio is a one-time battle event, separate from joining/reconnecting snapshots. */
+    public void beginPresentation(ServerBridge target) {
+        withBridge(target, () -> {
+            emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
+            return null;
+        });
+    }
+
     public void sendFullState(ServerBridge bridge) {
+        ServerBridge previous = this.bridge;
+        this.bridge = bridge;
+        try { sendSnapshot(bridge); }
+        finally { this.bridge = previous; }
+    }
+
+    private void sendSnapshot(ServerBridge bridge) {
         Team plantTeam = plantPlayer != null ? plantPlayer.team() : null;
         // The running level's own list, not the file's: it is the only one that knows about a
         // mechanic the *player* brought, and the overlay the client draws from it.
         LevelPayload payload = payloadFor(def, seedContext, mechanics);
         bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waves.roundWaveTypes(), payload,
                 humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
-        withBridge(bridge, () -> {
-            emitEffect("", width() / 2F, height() / 2F, PvzceSounds.AMBIENT_READY_SET_PLANT, 1F, 1F);
-            return null;
-        });
+
         bridge.send(new SceneSyncS2C(scene.snapshot()));
         for (TypedMechanic typed : mechanics) {
             LevelMechanics.sendState(typed, this, bridge);
@@ -6720,7 +6847,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             }
         }
         for (PvzceEntity entity : entities) {
-            sendEntitySpawn(entity, bridge);
+            if (!entity.isRemoved() && !(entity instanceof com.pvzce.server.entity.CardDropEntity drop && drop.held())) {
+                bridge.send(entity.spawnPacket());
+                bridge.send(entity.attributePacket());
+            }
         }
         for (PvzceEntity entity : entities) {
             if (entity instanceof PlantEntity plant && !plant.isRemoved()) {
@@ -6735,6 +6865,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         }
         // After the entities, so a client that joins a run whose player is carrying a packet
         // learns both where the packet was and that it is in the hand rather than on the lawn.
+        PlantEntity carried = carriedPlantId < 0 ? null : plantById(carriedPlantId);
+        bridge.send(new CarrySyncS2C(carried != null ? carried.defId().toString()
+                : carriedVaseFrom >= 0 ? PvzceIds.VASE.toString() : ""));
         Identifier inHand = heldCard();
         bridge.send(inHand == null ? HeldCardS2C.NONE
                 : new HeldCardS2C(heldCardDropId, inHand.toString()));

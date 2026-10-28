@@ -50,7 +50,7 @@ public final class PauseDialog extends Dialog {
         int titleRoom = Math.round(client.fonts().button().lineHeight(titleScale())) + ROW_GAP;
         int bottom = y + pad + 2;
         int top = y + height - pad - titleRoom;
-        String[] labels = {"继续游戏", "设置", "重新开始", "保存并退出"};
+        String[] labels = {"继续游戏", "设置", client.isMultiplayer() ? "联机房间" : "重新开始", client.isRemoteServer() ? "离开房间" : "保存并退出"};
         Runnable[] actions = {
                 this::close,
                 // The settings *menu* (音量设置 / 视频设置), not the volume page directly: this row
@@ -63,10 +63,12 @@ public final class PauseDialog extends Dialog {
                 // row under 继续游戏. The confirmation goes on top of this dialog rather than
                 // replacing it, so "取消" puts the player back on the pause menu with the
                 // level still paused - nothing was closed and nothing was sent.
-                () -> client.currentScreen().showDialog(ConfirmDialog.restart(client, () -> {
+                () -> { if (client.isMultiplayer()) {
+                    close(); client.openScreen(new MultiplayerScreen(client));
+                } else client.currentScreen().showDialog(ConfirmDialog.restart(client, () -> {
                     close();
                     client.restartCurrentLevel();
-                }, null)),
+                }, null)); },
                 () -> {
                     close();
                     client.leaveLevel();

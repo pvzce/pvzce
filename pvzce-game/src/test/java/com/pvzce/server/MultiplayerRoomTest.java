@@ -1,0 +1,239 @@
+package com.pvzce.server;
+
+import com.google.gson.JsonObject;
+import com.pvzce.common.PvzceIds;
+import com.pvzce.common.network.*;
+import com.pvzce.common.network.packet.*;
+import com.pvzce.testutil.ServerHarness;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.function.BooleanSupplier;
+import static org.junit.jupiter.api.Assertions.*;
+
+class MultiplayerRoomTest {
+    private static final String LEVEL = "pvzce:yard/adventure/1_2";
+    private static final List<String> CARDS = List.of("pvzce:sun", "pvzce:pea_shooter", "pvzce:glove");
+
+    static final class Peer implements AutoCloseable {
+        final Connection connection;
+        final List<PvzcePacket> packets = new ArrayList<>();
+        RoomS2C room;
+        LevelInitS2C init;
+        Peer(int port, String assets, String resume) throws Exception {
+            connection = TcpPacketTransport.connect("127.0.0.1", port);
+            connection.setListener(packet -> {
+                packets.add(packet);
+                if (packet instanceof ContentS2C c && c.last()) connection.send(new RoomC2S("content_ready", c.data(), ""));
+                if (packet instanceof RoomS2C r) room = r;
+                if (packet instanceof LevelInitS2C i) init = i;
+            });
+            JsonObject hello = new JsonObject(); hello.addProperty("name", "guest");
+            hello.addProperty("mods", ContentSnapshot.mods()); hello.addProperty("assets", assets);
+            connection.send(new RoomC2S("hello", hello.toString(), resume));
+        }
+        int slot(String id) { return init.slots().stream().filter(s -> s.defId().equals(id)).findFirst().orElseThrow().index(); }
+        @Override public void close() { connection.close(); }
+    }
+
+    static void await(ServerHarness host, List<Peer> peers, BooleanSupplier condition) throws Exception {
+        long until = System.nanoTime() + 15_000_000_000L;
+        while (!condition.getAsBoolean() && System.nanoTime() < until) {
+            host.pair().client().tick();
+            peers.forEach(p -> p.connection.tick());
+            Thread.sleep(2);
+        }
+        assertTrue(condition.getAsBoolean(), "Timed out; host=" + host.packets().stream().filter(p -> p instanceof ServerMessageS2C || p instanceof RoomS2C).toList()
+                + "; peers=" + peers.stream().map(p -> p.room + ":" + p.connection.disconnectReason()).toList());
+    }
+
+    @Test void tcpCoopKeepsDecksPrivateArbitratesPlacementAndResumesASeat(@TempDir Path dir) throws Exception {
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            host.send(new RoomC2S("open", "0", "coop"));
+            host.awaitPacket(RoomS2C.class, 15_000);
+            int port = host.server().multiplayerPort();
+            String assets = ContentSnapshot.assets(host.server().resourceManager());
+            try (var guest = new Peer(port, assets, "")) {
+                var peers = List.of(guest);
+                await(host, peers, () -> guest.room != null);
+                host.send(new PlayLevelC2S(LEVEL, "world", true, CARDS));
+                await(host, peers, () -> guest.room.levelId().equals(LEVEL));
+                assertNull(guest.init, "A lobby must not start the battle before everyone is ready");
+                guest.connection.send(new PlayLevelC2S(LEVEL, "untrusted-world", true, CARDS));
+                await(host, peers, () -> guest.room.players().stream().anyMatch(s -> s.contains("guest") && s.contains("已准备")));
+                host.send(new RoomC2S("start", "", ""));
+                await(host, peers, () -> guest.init != null);
+                host.send(new CommandC2S("/tick freeze"));
+                host.send(new CommandC2S("/resource give pvzce:plant_team pvzce:sun 1000"));
+                await(host, peers, () -> host.server().tickRateManager().isFrozen());
+                int hostSlot = host.server().level().plantPlayer().slots().stream().filter(s -> s.defId().equals(PvzceIds.id("pea_shooter"))).findFirst().orElseThrow().index();
+                int guestSlot = guest.slot("pvzce:pea_shooter");
+                guest.packets.clear(); host.clear();
+                host.send(new PlacePlantC2S(hostSlot, 0, 0));
+                await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof EntitySpawnS2C s && s.defId().equals("pvzce:pea_shooter")));
+                assertTrue(guest.packets.stream().noneMatch(p -> p instanceof SlotSyncS2C s && s.slot().defId().equals("pvzce:pea_shooter") && s.slot().cooldownLeft() > 0));
+                guest.connection.send(new PlacePlantC2S(guestSlot, 0, 0));
+                guest.connection.send(new PlacePlantC2S(guestSlot, 1, 0));
+                await(host, peers, () -> host.server().level().plantAt(1, 0) != null);
+                assertEquals(2, host.server().level().entities().stream().filter(e -> e instanceof com.pvzce.server.entity.PlantEntity).count());
+                int hostGlove = host.server().level().plantPlayer().slots().stream().filter(slot -> slot.defId().equals(PvzceIds.id("glove"))).findFirst().orElseThrow().index();
+                host.send(new UseToolC2S(hostGlove, 0, 0));
+                await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof CarrySyncS2C carry && !carry.plantId().isBlank()));
+                guest.connection.send(new UseToolC2S(guest.slot("pvzce:glove"), 0, 0));
+                await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof ServerMessageS2C msg && msg.message().contains("正在搬运")));
+                assertTrue(guest.packets.stream().noneMatch(p -> p instanceof CarrySyncS2C), "The host hand must remain private");
+                host.send(new UseToolC2S(hostGlove, 2, 0));
+                await(host, peers, () -> host.server().level().plantAt(2, 0) != null);
+                int balance = host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN);
+                String token = guest.room.token();
+                guest.close();
+                await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof RoomS2C r && r.players().stream().anyMatch(s -> s.contains("掉线"))));
+                assertTrue(host.server().thread().isAlive());
+                try (var resumed = new Peer(port, assets, token)) {
+                    await(host, List.of(resumed), () -> resumed.init != null);
+                    assertEquals(guest.room.playerId(), resumed.room.playerId());
+                    assertTrue(resumed.init.slots().stream().anyMatch(s -> s.defId().equals("pvzce:pea_shooter") && s.cooldownLeft() > 0));
+                    assertEquals(balance, host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
+                    resumed.connection.send(new CommandC2S("/resource give pvzce:plant_team pvzce:sun 9999"));
+                    resumed.connection.send(new PauseGameC2S(false));
+                    await(host, List.of(resumed), () -> resumed.packets.stream().anyMatch(p -> p instanceof ServerMessageS2C s && s.message().contains("仅房主")));
+                    assertEquals(balance, host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
+                    assertTrue(host.server().tickRateManager().isFrozen());
+                    resumed.connection.send(new RoomC2S("leave", "", ""));
+                    await(host, List.of(resumed), () -> !resumed.connection.isConnected());
+                    assertTrue(host.server().thread().isAlive());
+                }
+            }
+        }
+    }
+
+    @Test void contentSnapshotRestoresLocalObjectIdentityAndTags(@TempDir Path dir) throws Exception {
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            var registry = com.pvzce.common.core.BuiltInRegistries.PLANTS;
+            var original = registry.get(PvzceIds.id("pea_shooter"));
+            int rawId = registry.getId(original);
+            var tags = Set.copyOf(registry.tagKeys());
+            List<PvzcePacket> chunks = new ArrayList<>();
+            ContentSnapshot.send(ContentSnapshot.capture("assets"), chunks::add);
+            try (var remote = new ContentSnapshot()) {
+                for (var chunk : chunks) remote.accept((ContentS2C)chunk, "assets");
+                assertNotSame(original, registry.get(PvzceIds.id("pea_shooter")));
+                assertEquals(original.health(), registry.get(PvzceIds.id("pea_shooter")).health());
+                assertEquals(original.cost(), registry.get(PvzceIds.id("pea_shooter")).cost());
+            }
+            assertSame(original, registry.get(PvzceIds.id("pea_shooter")));
+            assertEquals(rawId, registry.getId(original));
+            assertEquals(tags, registry.tagKeys());
+        }
+    }
+    @Test void independentJvmLoadsServerDataAndPlaysOverTcp(@TempDir Path dir) throws Exception {
+        Path datapack = dir.resolve("datapacks/network-test/data/pvzce/plants/pea_shooter.json");
+        java.nio.file.Files.createDirectories(datapack.getParent());
+        String plant = new String(getClass().getResourceAsStream("/data/pvzce/plants/pea_shooter.json").readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        var json = com.google.gson.JsonParser.parseString(plant).getAsJsonObject();
+        json.getAsJsonObject("cost").getAsJsonObject("resources").addProperty("pvzce:sun", 77);
+        java.nio.file.Files.writeString(datapack, json.toString());
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            host.send(new RoomC2S("open", "0", "coop")); host.awaitPacket(RoomS2C.class, 15_000);
+            host.send(new PlayLevelC2S(LEVEL, "world", true, CARDS));
+            await(host, List.of(), () -> host.server().level() != null);
+            List<String> classpath = new ArrayList<>(List.of(System.getProperty("java.class.path").split(java.io.File.pathSeparator)));
+            for (ClassLoader loader = Thread.currentThread().getContextClassLoader(); loader != null; loader = loader.getParent())
+                if (loader instanceof java.net.URLClassLoader urls)
+                    for (var url : urls.getURLs()) if (url.getProtocol().equals("file")) classpath.add(Path.of(url.toURI()).toString());
+            Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "-cp", String.join(java.io.File.pathSeparator, classpath), MultiplayerClientProbe.class.getName(),
+                    Integer.toString(host.server().multiplayerPort()), dir.resolve("remote-client").toString())
+                    .redirectErrorStream(true).redirectOutput(dir.resolve("remote-client.log").toFile()).start();
+            try {
+                await(host, List.of(), () -> host.packets().stream().anyMatch(p -> p instanceof RoomS2C r
+                        && r.players().stream().anyMatch(name -> name.contains("independent-jvm") && name.contains("已准备"))));
+                host.send(new CommandC2S("/resource give pvzce:plant_team pvzce:sun 1000"));
+                host.send(new RoomC2S("start", "", ""));
+                await(host, List.of(), () -> host.server().level().plantAt(1, 0) != null);
+                assertTrue(process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS));
+                String log = java.nio.file.Files.readString(dir.resolve("remote-client.log"));
+                assertEquals(0, process.exitValue(), log);
+                assertTrue(log.contains("CONTENT_INSTALLED"), log);
+                assertTrue(log.contains("BATTLE_INITIALIZED pvzce:plant_team"), log);
+                assertTrue(log.contains("PLANT_CONFIRMED"), log);
+            } finally { process.destroyForcibly(); }
+        }
+    }
+
+    @Test void humanVersusUsesUnhandicappedEconomyAndProjectsOppositeOutcomes(@TempDir Path dir) throws Exception {
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            host.send(new RoomC2S("open", "0", "versus")); host.awaitPacket(RoomS2C.class, 15_000);
+            String assets = ContentSnapshot.assets(host.server().resourceManager());
+            try (var guest = new Peer(host.server().multiplayerPort(), assets, "")) {
+                var peers = List.of(guest);
+                await(host, peers, () -> guest.room != null);
+                String duel = "pvzce:yard/versus/duel_1";
+                host.send(new PlayLevelC2S(duel, "world", true, List.of(), List.of(), "pvzce:zombie_team"));
+                await(host, peers, () -> guest.room.levelId().equals(duel));
+                guest.connection.send(new PlayLevelC2S(duel, "ignored", true, List.of()));
+                await(host, peers, () -> guest.room.players().stream().anyMatch(s -> s.contains("guest") && s.contains("已准备")));
+                host.send(new RoomC2S("start", "", ""));
+                await(host, peers, () -> guest.init != null);
+                host.send(new CommandC2S("/tick freeze"));
+                await(host, peers, () -> host.server().tickRateManager().isFrozen());
+                assertEquals("pvzce:plant_team", guest.init.controlledTeamId());
+                assertEquals(PvzceIds.ZOMBIE_TEAM, host.server().level().humanTeamId());
+                assertTrue(host.server().level().humanVersus());
+                int opening = host.server().level().versusData().plantInitialSun();
+                assertEquals(opening, host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
+                assertTrue(host.server().level().entities().stream().noneMatch(e -> e instanceof com.pvzce.server.entity.PlantEntity));
+                host.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 0 2"));
+                host.send(new CommandC2S("/tick step 400"));
+                await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof GameStateS2C));
+                var result = guest.packets.stream().filter(p -> p instanceof GameStateS2C).map(p -> (GameStateS2C)p).reduce((a,b) -> b).orElseThrow();
+                assertEquals(GameStateS2C.LOST, result.state());
+                assertEquals("pvzce:zombie_team", result.winTeamId());
+                assertTrue(host.packets().stream().anyMatch(p -> p instanceof GameStateS2C g && g.state().equals(GameStateS2C.WON)));
+            }
+        }
+    }
+
+    @Test void coopAdmitsFourPlayersAndRejectsAnAdditionalSeat(@TempDir Path dir) throws Exception {
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            host.send(new RoomC2S("open", "0", "coop")); host.awaitPacket(RoomS2C.class, 15_000);
+            String assets = ContentSnapshot.assets(host.server().resourceManager());
+            int port = host.server().multiplayerPort();
+            try (var one = new Peer(port, assets, ""); var two = new Peer(port, assets, "");
+                 var three = new Peer(port, assets, "")) {
+                var peers = List.of(one, two, three);
+                await(host, peers, () -> three.room != null && one.room != null && two.room != null && three.room.players().size() == 4);
+                try (var extra = new Peer(port, assets, "")) {
+                    await(host, List.of(extra), () -> extra.room != null && extra.room.state().equals("error"));
+                    assertTrue(extra.room.message().contains("已满"));
+                    assertTrue(host.server().thread().isAlive());
+                }
+            }
+        }
+    }
+
+    @Test void joiningSnapshotDoesNotConsumeDirtyUpdatesOrReplaceBroadcastRoute(@TempDir Path dir) throws Exception {
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            var def = com.pvzce.common.core.BuiltInRegistries.LEVELS.get(com.pvzce.api.util.Identifier.parse(LEVEL));
+            var level = new com.pvzce.server.level.LevelServer(def);
+            List<PvzcePacket> broadcast = new ArrayList<>(), joiner = new ArrayList<>();
+            var plant = level.spawnPlant(com.pvzce.common.core.BuiltInRegistries.PLANTS.get(PvzceIds.id("pea_shooter")),
+                    level.team(PvzceIds.PLANT_TEAM), 0, 0);
+            level.tick(broadcast::add);
+            plant.attributes().get(com.pvzce.common.entity.EntityAttributes.MAX_HEALTH).setBaseValue(350);
+            level.sendFullState(joiner::add);
+            assertTrue(plant.attributes().dirty());
+            assertTrue(joiner.stream().noneMatch(p -> p instanceof EffectEventS2C), "Snapshots must not replay entry events");
+            broadcast.clear();
+            level.tick(broadcast::add);
+            assertTrue(broadcast.stream().anyMatch(p -> p instanceof EntityAttributesS2C a && a.entityId() == plant.id()));
+            int before = joiner.size();
+            level.send(new ServerMessageS2C("still broadcast"));
+            assertEquals(before, joiner.size());
+            assertTrue(broadcast.stream().anyMatch(p -> p instanceof ServerMessageS2C m && m.message().equals("still broadcast")));
+            level.shutdown();
+        }
+    }
+
+}

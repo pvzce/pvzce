@@ -66,4 +66,19 @@ class TitleScreenTrayTest {
             }
         }
     }
+    @Test void multiplayerEntryClearsTheAccountBadgeAndKeepsExistingMenuOrder() throws Exception {
+        try (ClientHarness harness = ClientHarness.create("pvzce-multiplayer-entry")) {
+            TitleScreen menu = new TitleScreen(harness.client());
+            Button entry = menu.widgets().stream().filter(w -> w instanceof Button b && b.label().equals("多人游戏"))
+                    .map(w -> (Button) w).findFirst().orElseThrow();
+            assertTrue(entry.y() >= 35, "The account badge occupies the lower corner");
+            assertEquals("开始游戏", ((Button)menu.widgets().get(0)).label());
+            for (int i = 0; i < 4; i++) {
+                var other = (Button)menu.widgets().get(i);
+                assertFalse(entry.x() < other.x() + other.width() && entry.x() + entry.width() > other.x()
+                        && entry.y() < other.y() + other.height() && entry.y() + entry.height() > other.y());
+            }
+        }
+    }
+
 }

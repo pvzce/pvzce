@@ -47,7 +47,11 @@ public final class PvzceClientPacketListener implements PacketListener {
 
     @Override
     public void handle(PvzcePacket packet) {
-        if (packet instanceof LevelInitS2C init) {
+        if (packet instanceof com.pvzce.common.network.packet.RoomS2C room) {
+            client.onMultiplayerRoom(room);
+        } else if (packet instanceof com.pvzce.common.network.packet.ContentS2C content) {
+            client.onMultiplayerContent(content);
+        } else if (packet instanceof LevelInitS2C init) {
             if (init.protocolVersion() != PvzcePackets.PROTOCOL_VERSION) {
                 // Refuse to run a mismatched protocol instead of decoding garbage.
                 client.onProtocolMismatch(init.protocolVersion(), PvzcePackets.PROTOCOL_VERSION);
@@ -196,6 +200,6 @@ public final class PvzceClientPacketListener implements PacketListener {
 
     @Override
     public void onDisconnect(String reason) {
-        level.setDisconnected(reason);
+        client.onNetworkDisconnect(reason);
     }
 }

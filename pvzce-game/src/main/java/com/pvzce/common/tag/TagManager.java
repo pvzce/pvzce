@@ -211,6 +211,20 @@ public final class TagManager {
         return result;
     }
 
+    /** Mirrors validated remote registry tags for the session, restoring the local resolver on close. */
+    public synchronized Runnable installSnapshot(RegistryAccess access) {
+        Map<RawKey, Set<Identifier>> previous = new LinkedHashMap<>(resolvedTags);
+        resolvedTags.clear();
+        for (var data : PvzceDataLoader.CONTENT_REGISTRIES) importTags(data, access);
+        return () -> { synchronized (this) { resolvedTags.clear(); resolvedTags.putAll(previous); } };
+    }
+
+    private <T> void importTags(PvzceDataLoader.RegistryData<T> data, RegistryAccess access) {
+        Registry<T> registry = access.get(data.key());
+        for (TagKey<T> tag : registry.tagKeys())
+            resolvedTags.put(new RawKey(data.contentPath(), tag.id()), Set.copyOf(registry.getTag(tag).orElseThrow().ids()));
+    }
+
     public Set<TagKey<?>> keys() {
         Set<TagKey<?>> keys = new LinkedHashSet<>();
         synchronized (this) {

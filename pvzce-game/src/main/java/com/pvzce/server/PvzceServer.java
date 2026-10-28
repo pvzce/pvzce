@@ -84,6 +84,7 @@ public final class PvzceServer implements Runnable {
     private static final int MAX_TICKS_PER_FRAME = 5;
 
     private final Connection connection;
+    private final MultiplayerRoom room;
     private final Path gameDir;
     private final PvzceResourceManager resourceManager;
     private final PvzceTickRateManager tickRate = new PvzceTickRateManager();
@@ -98,6 +99,8 @@ public final class PvzceServer implements Runnable {
     private boolean levelFinishHandled;
     private volatile boolean savePromptPending;
     private volatile boolean manualPause;
+    private boolean localSuspended;
+    void suspendLocal(boolean suspended) { localSuspended = suspended; }
     /**
      * The world of the last level list the client asked for.
      *
@@ -125,15 +128,27 @@ public final class PvzceServer implements Runnable {
     public PvzceServer(Connection connection, Path gameDir, ClassLoader classLoader) {
         this.worlds = new WorldStore(gameDir);
         this.connection = connection;
+        this.room = new MultiplayerRoom(this, connection);
         this.gameDir = gameDir;
         this.resourceManager = new PvzceResourceManager(classLoader);
         this.bridge = packet -> {
-            connection.send(packet);
+            room.route(packet);
             if (packet instanceof GameStateS2C state && !GameStateS2C.RUNNING.equals(state.state())) {
                 onLevelFinished();
             }
         };
         this.dispatcher = PvzceCommands.create(this);
+    }
+
+    private Connection replyConnection() { return room.replyConnection(); }
+    LevelServer.ServerBridge roomBridge() { return bridge; }
+    void handleRoomGameplay(PvzcePacket packet) { new ServerPacketListener().handleGameplay(packet); }
+    void sendRoomLevelList(String world) { sendLevelList(world); }
+    public int multiplayerPort() { return room.port(); }
+
+    void prepareRoomLevel(com.pvzce.common.network.packet.PlayLevelC2S play, boolean versus) {
+        createLevel(play.levelId(), play.worldName(), LevelIntent.PLAY_OVER_SAVE,
+                seedIds(play.selectedSeeds()), seedIds(play.selectedBuffs()), teamId(play.humanTeam()));
     }
 
     public LevelServer level() {
@@ -176,11 +191,11 @@ public final class PvzceServer implements Runnable {
     }
 
     public void sendMessage(String message) {
-        connection.send(new ServerMessageS2C(message));
+        replyConnection().send(new ServerMessageS2C(message));
     }
 
     public void sendPacket(PvzcePacket packet) {
-        connection.send(packet);
+        room.route(packet);
     }
 
     /** Brigadier tab completion for the in-game console. */
@@ -190,7 +205,7 @@ public final class PvzceServer implements Runnable {
             int rangeOffset = input.startsWith("/") ? 1 : 0;
             var suggestions = dispatcher.getCompletionSuggestions(
                     dispatcher.parse(command, new PvzceCommandSource(this))).get();
-            connection.send(new SuggestionsS2C(requestId, suggestions.getList().stream()
+            replyConnection().send(new SuggestionsS2C(requestId, suggestions.getList().stream()
                     .map(suggestion -> new SuggestionsS2C.Suggestion(
                             suggestion.getRange().getStart() + rangeOffset,
                             suggestion.getRange().getEnd() + rangeOffset,
@@ -200,7 +215,7 @@ public final class PvzceServer implements Runnable {
                     .toList()));
         } catch (Exception e) {
             LOGGER.warn("Suggestions failed for '" + input + "'", e);
-            connection.send(new SuggestionsS2C(requestId, List.of()));
+            replyConnection().send(new SuggestionsS2C(requestId, List.of()));
         }
     }
 
@@ -240,16 +255,16 @@ public final class PvzceServer implements Runnable {
                 // Commands and network packets must keep flowing even while
                 // the tick loop is frozen, otherwise /tick unfreeze could
                 // never be delivered.
-                processCommands();
-                processStdin(stdin);
+                if (!localSuspended) { processCommands(); processStdin(stdin); }
                 connection.tick();
+                room.tick();
                 if (now - lastDebugInfoNanos >= 250_000_000L) {
                     lastDebugInfoNanos = now;
                     // The tick rate is owned by GameSpeedS2C; this heartbeat only
                     // reports the measured clock and the run state.
                     // The level's own counter rides along: the tutorial's timed lines are written
                     // against it, and the server's clock counts across levels.
-                    connection.send(new DebugInfoS2C(tickRate.tickCount(),
+                    bridge.send(new DebugInfoS2C(tickRate.tickCount(),
                             level == null ? 0 : level.tickCount(),
                             tickRate.isFrozen(), tickRate.isSprinting()));
                 }
@@ -259,12 +274,13 @@ public final class PvzceServer implements Runnable {
                 while (ticks < MAX_TICKS_PER_FRAME && tickRate.advance(frameBudget)) {
                     ticks++;
                     frameBudget = Math.max(0, frameBudget - tickRate.nanosPerTick());
-                    processCommands();
-                    processStdin(stdin);
+                    if (!localSuspended) { processCommands(); processStdin(stdin); }
                     connection.tick();
+                    room.tick();
                     long tickStartNanos = System.nanoTime();
-                    if (level != null && !savePromptPending && !manualPause) {
+                    if (level != null && !savePromptPending && !manualPause && !room.waiting()) {
                         level.tick(bridge);
+                        room.tickParticipants();
                     }
                     tickRate.recordTickTime(System.nanoTime() - tickStartNanos);
                     tickRate.onTick();
@@ -283,8 +299,9 @@ public final class PvzceServer implements Runnable {
             }
         } catch (Throwable t) {
             LOGGER.error("The server loop failed", t);
-            connection.send(new ServerMessageS2C("服务器异常: " + t.getMessage()));
+            replyConnection().send(new ServerMessageS2C("服务器异常: " + t.getMessage()));
         } finally {
+            room.close();
             saveGame();
             // The wallet has to survive a shutdown that never went through leaveLevel.
             worlds.flushProfile();
@@ -332,9 +349,9 @@ public final class PvzceServer implements Runnable {
             try {
                 dispatcher.execute(trimmed, new PvzceCommandSource(this));
             } catch (CommandSyntaxException e) {
-                connection.send(new ServerMessageS2C("命令错误: " + e.getMessage()));
+                replyConnection().send(new ServerMessageS2C("命令错误: " + e.getMessage()));
             } catch (Throwable t) {
-                connection.send(new ServerMessageS2C("命令执行失败: " + t.getMessage()));
+                replyConnection().send(new ServerMessageS2C("命令执行失败: " + t.getMessage()));
             }
         }
     }
@@ -353,7 +370,7 @@ public final class PvzceServer implements Runnable {
                     resourceManager.workspaceOverlay(null);
                     reloadData(false);
                 }
-                connection.send(new com.pvzce.common.network.packet.WorkshopSessionS2C(false, ""));
+                replyConnection().send(new com.pvzce.common.network.packet.WorkshopSessionS2C(false, ""));
                 refreshLevelList();
                 return;
             }
@@ -367,7 +384,7 @@ public final class PvzceServer implements Runnable {
             worlds.beginSandbox();
             resourceManager.workspaceOverlay(source.root());
             reloadData(false);
-            connection.send(new com.pvzce.common.network.packet.WorkshopSessionS2C(true, ""));
+            replyConnection().send(new com.pvzce.common.network.packet.WorkshopSessionS2C(true, ""));
             lastRequestedWorld = workshopWorld;
             sendLevelList(workshopWorld);
         } catch (Exception e) {
@@ -376,7 +393,7 @@ public final class PvzceServer implements Runnable {
             workshopWorld = null;
             lastRequestedWorld = workshopPreviousWorld;
             reloadData(false);
-            connection.send(new com.pvzce.common.network.packet.WorkshopSessionS2C(false, java.util.Objects.toString(e.getMessage(), e.toString())));
+            replyConnection().send(new com.pvzce.common.network.packet.WorkshopSessionS2C(false, java.util.Objects.toString(e.getMessage(), e.toString())));
         }
     }
 
@@ -390,7 +407,7 @@ public final class PvzceServer implements Runnable {
             // so a reload must let it warn again.
             SlotResolver.resetReported();
             if (announce) {
-                connection.send(new ServerMessageS2C("已重载数据包: " + content.loaded().size() + " 个条目，"
+                replyConnection().send(new ServerMessageS2C("已重载数据包: " + content.loaded().size() + " 个条目，"
                         + tags.loaded().size() + " 个标签"));
             }
             // One reporting path for both loaders: they each had their own copy of
@@ -404,7 +421,7 @@ public final class PvzceServer implements Runnable {
         } catch (Throwable t) {
             LOGGER.error("Reload failed", t);
             if (announce) {
-                connection.send(new ServerMessageS2C("重载失败: " + t.getMessage()));
+                replyConnection().send(new ServerMessageS2C("重载失败: " + t.getMessage()));
             }
         }
     }
@@ -415,7 +432,7 @@ public final class PvzceServer implements Runnable {
             LOGGER.warn("[{}] {}", label, error);
         }
         if (!errors.isEmpty()) {
-            connection.send(new ServerMessageS2C("[" + label + "] " + errors.size() + " 个问题，详见日志"));
+            replyConnection().send(new ServerMessageS2C("[" + label + "] " + errors.size() + " 个问题，详见日志"));
         }
     }
 
@@ -516,9 +533,9 @@ public final class PvzceServer implements Runnable {
         }
         // Pages travel with the list they describe: a screen that received the levels but
         // not the tabs would have to invent them, and the two would be free to disagree.
-        connection.send(profilePacket(profile));
-        connection.send(new LevelTabsS2C(LevelTabs.build()));
-        connection.send(new LevelListS2C(levels));
+        replyConnection().send(profilePacket(profile));
+        replyConnection().send(new LevelTabsS2C(LevelTabs.build()));
+        replyConnection().send(new LevelListS2C(levels));
     }
 
     /**
@@ -534,7 +551,7 @@ public final class PvzceServer implements Runnable {
         Identifier id = Identifier.tryParse(levelId);
         LevelDef def = id == null ? null : BuiltInRegistries.LEVELS.get(id);
         if (def == null) {
-            connection.send(new ServerMessageS2C("未找到关卡 " + levelId));
+            replyConnection().send(new ServerMessageS2C("未找到关卡 " + levelId));
             return;
         }
         String safeWorld = WorldPaths.sanitize(worldName);
@@ -549,7 +566,7 @@ public final class PvzceServer implements Runnable {
         }
         int cost = state.cost();
         if (!state.buyable()) {
-            connection.send(new ServerMessageS2C(cost <= 0
+            replyConnection().send(new ServerMessageS2C(cost <= 0
                     ? "关卡 " + id + " 不能用金币解锁"
                     : "金币不足：需要 " + cost + "，当前 " + profile.coins()));
             return;
@@ -557,7 +574,7 @@ public final class PvzceServer implements Runnable {
         profile.setCoins(profile.coins() - cost);
         profile.unlockLevel(id);
         worlds.saveProfile(safeWorld, profile);
-        connection.send(new ServerMessageS2C("已解锁 " + def.displayName() + "，花费 " + cost + " 金币"));
+        replyConnection().send(new ServerMessageS2C("已解锁 " + def.displayName() + "，花费 " + cost + " 金币"));
         // The list carries the profile, so sending it also refreshes the coin counter and
         // the row's padlock in one go.
         sendLevelList(safeWorld);
@@ -580,28 +597,28 @@ public final class PvzceServer implements Runnable {
         com.pvzce.common.shop.ShopItems.Item item = id == null
                 ? null : com.pvzce.common.shop.ShopItems.byId(id).orElse(null);
         if (item == null) {
-            connection.send(new ServerMessageS2C("商店里没有 " + itemId));
+            replyConnection().send(new ServerMessageS2C("商店里没有 " + itemId));
             return;
         }
         String safeWorld = WorldPaths.sanitize(worldName);
         PlayerProfile profile = worlds.profileFor(safeWorld);
         if (com.pvzce.server.shop.ShopPurchases.maxedOut(profile, item)) {
-            connection.send(new ServerMessageS2C("已经拥有 " + id + " 了"));
+            replyConnection().send(new ServerMessageS2C("已经拥有 " + id + " 了"));
             return;
         }
         if (profile.coins() < item.price()) {
-            connection.send(new ServerMessageS2C("金币不足：需要 " + item.price()
+            replyConnection().send(new ServerMessageS2C("金币不足：需要 " + item.price()
                     + "，当前 " + profile.coins()));
             return;
         }
         String refusal = com.pvzce.server.shop.ShopPurchases.apply(profile, item);
         if (!refusal.isEmpty()) {
-            connection.send(new ServerMessageS2C(refusal));
+            replyConnection().send(new ServerMessageS2C(refusal));
             return;
         }
         profile.setCoins(profile.coins() - item.price());
         worlds.saveProfile(safeWorld, profile);
-        connection.send(new ServerMessageS2C("已购买 " + id + "，花费 " + item.price() + " 金币"));
+        replyConnection().send(new ServerMessageS2C("已购买 " + id + "，花费 " + item.price() + " 金币"));
         // The list carries the profile, so sending it also refreshes the wallet and the "已拥有"
         // marks in one go - the same reason `buyLevel` ends by re-sending the list.
         sendLevelList(safeWorld);
@@ -684,7 +701,7 @@ public final class PvzceServer implements Runnable {
         profile.setSeedSlots(slots);
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return "世界 " + safeWorld + " 的卡槽数现在是 " + profile.seedSlots()
                 + "（关卡自己声明了 max_seed_slots 时以关卡为准）";
     }
@@ -701,7 +718,7 @@ public final class PvzceServer implements Runnable {
         profile.setBuffSlots(slots);
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return "世界 " + safeWorld + " 的增益槽现在是 " + profile.buffSlots()
                 + "（关卡自己声明了 max_buff_slots 时以关卡为准）";
     }
@@ -720,7 +737,7 @@ public final class PvzceServer implements Runnable {
         profile.setAutoBuffs(buffs);
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return profile.autoBuffs().isEmpty()
                 ? "世界 " + safeWorld + " 的自动启用增益已清空"
                 : "世界 " + safeWorld + " 的自动启用增益：" + profile.autoBuffIds();
@@ -742,7 +759,7 @@ public final class PvzceServer implements Runnable {
         boolean granted = profile.unlockBuff(buff);
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return granted
                 ? "世界 " + safeWorld + " 已获得增益 " + buff
                 : "世界 " + safeWorld + " 早就有增益 " + buff + " 了";
@@ -764,7 +781,7 @@ public final class PvzceServer implements Runnable {
         profile.unlockLevel(levelId);
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return "已解锁关卡 " + levelId + "（世界 " + safeWorld + "）";
     }
 
@@ -787,7 +804,7 @@ public final class PvzceServer implements Runnable {
         int added = profile.grantCoins(amount);
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return "世界 " + safeWorld + " 的金币现在是 " + profile.coins()
                 + (added < amount ? "（上限截断了 " + (amount - added) + "）" : "");
     }
@@ -799,7 +816,7 @@ public final class PvzceServer implements Runnable {
         profile.unlockAll();
         worlds.saveProfile(safeWorld, profile);
         refreshLevelList();
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         return "世界 " + safeWorld + " 已切换为沙盒：全部卡与全部关卡解锁";
     }
 
@@ -825,7 +842,7 @@ public final class PvzceServer implements Runnable {
         String said = WorldPaths.sanitize(menuWorld()) + "：" + line;
         LevelServer running = level;
         if (running == null) {
-            connection.send(new com.pvzce.common.network.packet.ServerMessageS2C(said));
+            replyConnection().send(new com.pvzce.common.network.packet.ServerMessageS2C(said));
             return;
         }
         // `send`, not `sendMessage`: the latter needs the bridge a *tick* installs, and a command
@@ -868,7 +885,7 @@ public final class PvzceServer implements Runnable {
             running.setDifficulty(tier);
         }
         if (changed) {
-            connection.send(profilePacket(profile));
+            replyConnection().send(profilePacket(profile));
         }
         return "";
     }
@@ -1105,7 +1122,7 @@ public final class PvzceServer implements Runnable {
         Identifier id = Identifier.parse(levelId);
         LevelDef def = BuiltInRegistries.LEVELS.get(id);
         if (def == null) {
-            connection.send(new ServerMessageS2C("未找到关卡 " + id));
+            replyConnection().send(new ServerMessageS2C("未找到关卡 " + id));
             return;
         }
 
@@ -1122,7 +1139,7 @@ public final class PvzceServer implements Runnable {
                 unlockContext(safeWorld, worlds.profileFor(safeWorld)));
         if (!unlock.unlocked()) {
             String label = def.displayName().isBlank() ? id.toString() : def.displayName();
-            connection.send(new ServerMessageS2C("关卡 " + label + " 尚未解锁：" + unlock.reason()));
+            replyConnection().send(new ServerMessageS2C("关卡 " + label + " 尚未解锁：" + unlock.reason()));
             return;
         }
         // Only "continue" accepts the instance that is already running. Everything else -
@@ -1135,7 +1152,7 @@ public final class PvzceServer implements Runnable {
             // Continuing the level that is already running: nothing to load, and re-sending
             // the state is what the client's resync path expects.
             level.sendFullState(bridge);
-            connection.send(new GameSpeedS2C(tickRate.tickRate()));
+            bridge.send(new GameSpeedS2C(tickRate.tickRate()));
             return;
         }
         Path worldDir = WorldPaths.worldDir(gameDir, safeWorld);
@@ -1187,7 +1204,8 @@ public final class PvzceServer implements Runnable {
                     requestedBuffs, profile.autoBuffs(), saveDir, loadSave, profile::ownsBuff);
 
             newLevel = new LevelServer(def, seeds,
-                    LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard, humanTeam);
+                    LevelServer.SeedContext.forProfile(def, profile), buffs, profile::ownsCard, humanTeam,
+                    room.open() && room.versus());
             // The opponent's credential, for the runs that have one: handed in before the first tick,
             // so the very first decision of a versus level already knows where Jev is.
             applyAiSettings(newLevel);
@@ -1210,14 +1228,14 @@ public final class PvzceServer implements Runnable {
             // the *next* chooser pre-selects, and a client that only learns it after the level
             // list happens to refresh would open the next buff page empty. Same reason every other
             // profile change sends the packet.
-            connection.send(profilePacket(profile));
+            replyConnection().send(profilePacket(profile));
         }
         // Entering/restarting a level always starts at the normal 60tps speed.
         tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE);
 
         if (loadSave) {
             LOGGER.info("Restored {} plants from {}", saveTag.getInt("PlantCount"), saveDir);
-            connection.send(new ServerMessageS2C("已从存档继续 " + def.displayName()));
+            replyConnection().send(new ServerMessageS2C("已从存档继续 " + def.displayName()));
         }
 
         if (this.level != null && this.level != newLevel) {
@@ -1243,8 +1261,11 @@ public final class PvzceServer implements Runnable {
         // A resync of the running level never reaches this point - its music is still current.
         silenceClientLevelMusic();
         preloadClientLevelMusic(def);
-        newLevel.sendFullState(bridge);
-        connection.send(new GameSpeedS2C(tickRate.tickRate()));
+        if (!room.open()) {
+            newLevel.sendFullState(bridge);
+            newLevel.beginPresentation(bridge);
+        }
+        bridge.send(new GameSpeedS2C(tickRate.tickRate()));
 
         pendingSaveLevel = null;
         pendingSaveWorld = null;
@@ -1257,7 +1278,7 @@ public final class PvzceServer implements Runnable {
             // about, rather than against whatever the client names.
             pendingSaveLevel = id;
             pendingSaveWorld = safeWorld;
-            connection.send(new LevelSavePromptS2C(id.toString(), safeWorld, def.displayName(),
+            replyConnection().send(new LevelSavePromptS2C(id.toString(), safeWorld, def.displayName(),
                     saveTag.getInt("Tick"), saveTag.getInt("PlantCount"), saveTag.getInt("Sun"), false));
         }
     }
@@ -1267,7 +1288,7 @@ public final class PvzceServer implements Runnable {
         LOGGER.warn("Failed to load running save from {}; awaiting the player's restart decision", saveDir, cause);
         pendingSaveLevel = def.id();
         pendingSaveWorld = world;
-        connection.send(new LevelSavePromptS2C(def.id().toString(), world, def.displayName(),
+        replyConnection().send(new LevelSavePromptS2C(def.id().toString(), world, def.displayName(),
                 0, 0, 0, true));
     }
 
@@ -1280,9 +1301,9 @@ public final class PvzceServer implements Runnable {
      * so the previous run's track kept looping under the new run's music.
      */
     private void silenceClientLevelMusic() {
-        connection.send(MusicEventS2C.reset(MusicEventS2C.TRACK_BACKGROUND));
-        connection.send(MusicEventS2C.reset(MusicEventS2C.TRACK_BATTLE));
-        connection.send(MusicEventS2C.reset(MusicEventS2C.TRACK_STINGER));
+        replyConnection().send(MusicEventS2C.reset(MusicEventS2C.TRACK_BACKGROUND));
+        replyConnection().send(MusicEventS2C.reset(MusicEventS2C.TRACK_BATTLE));
+        replyConnection().send(MusicEventS2C.reset(MusicEventS2C.TRACK_STINGER));
     }
 
     /**
@@ -1301,7 +1322,7 @@ public final class PvzceServer implements Runnable {
             if (cue.stop() || cue.event().isEmpty()) {
                 continue;
             }
-            connection.send(MusicEventS2C.preload(cue.track(), cue.event().get().toString()));
+            replyConnection().send(MusicEventS2C.preload(cue.track(), cue.event().get().toString()));
         }
     }
 
@@ -1316,9 +1337,9 @@ public final class PvzceServer implements Runnable {
         String safeWorld = WorldPaths.sanitize(worldName);
         PlayerProfile created = unlockAll ? PlayerProfile.unlockEverything() : PlayerProfile.starter();
         worlds.saveProfile(safeWorld, created);
-        connection.send(new ServerMessageS2C("世界 " + safeWorld + " 已创建"
+        replyConnection().send(new ServerMessageS2C("世界 " + safeWorld + " 已创建"
                 + (unlockAll ? "（全解锁）" : "（初始：豌豆射手 + 铲子）")));
-        connection.send(profilePacket(created));
+        replyConnection().send(profilePacket(created));
     }
 
     public void leaveLevel() {
@@ -1334,7 +1355,7 @@ public final class PvzceServer implements Runnable {
         currentWorld = null;
         currentLevelId = null;
         levelFinishHandled = false;
-        connection.send(new ServerMessageS2C("关卡已退出。"));
+        replyConnection().send(new ServerMessageS2C("关卡已退出。"));
     }
 
     /**
@@ -1450,10 +1471,10 @@ public final class PvzceServer implements Runnable {
         worlds.saveProfile(currentWorld, profile);
         // The award screen is presentation; the wallet is already written above, so
         // a client that never renders the screen still got its coins.
-        connection.send(new LevelRewardS2C(id.toString(), payout.collected(), payout.bonus(),
+        replyConnection().send(new LevelRewardS2C(id.toString(), payout.collected(), payout.bonus(),
                 profile.coins(), payout.grants(),
                 current.lastKillX(), current.lastKillY(), payout.mowers(), payout.mowerCoins()));
-        connection.send(profilePacket(profile));
+        replyConnection().send(profilePacket(profile));
         // The finished level's row must stop saying "进行中" without a round trip. The
         // refresh names the world the level was in, not the last world a *list* was
         // asked for: those differ whenever a level was entered without going through
@@ -1487,6 +1508,11 @@ public final class PvzceServer implements Runnable {
     private final class ServerPacketListener implements PacketListener {
         @Override
         public void handle(PvzcePacket packet) {
+            if (localSuspended && !(packet instanceof com.pvzce.common.network.packet.RoomC2S)) return;
+            if (!room.handleHost(packet)) handleGameplay(packet);
+        }
+
+        private void handleGameplay(PvzcePacket packet) {
             LevelServer current = level;
             if (packet instanceof ContinueLevelC2S request) {
                 // "Load the run I have saved." When that run is already loaded and waiting on
@@ -1523,7 +1549,7 @@ public final class PvzceServer implements Runnable {
                 if (!world.isBlank()) {
                     lastRequestedWorld = world;
                 }
-                connection.send(profilePacket(worlds.profileFor(menuWorld())));
+                replyConnection().send(profilePacket(worlds.profileFor(menuWorld())));
             } else if (packet instanceof RequestSuggestionsC2S suggestions) {
                 sendSuggestions(suggestions.input(), suggestions.requestId());
             } else if (packet instanceof SetGameSpeedC2S speed) {
@@ -1533,13 +1559,13 @@ public final class PvzceServer implements Runnable {
                 // the player has to answer them. The client is told at level init and hides the
                 // button; this is the check that makes it true rather than tidy.
                 if (level != null && level.forbidsSpeedChange()) {
-                    connection.send(new GameSpeedS2C(tickRate.tickRate()));
-                    connection.send(new com.pvzce.common.network.packet.ServerMessageS2C(
+                    bridge.send(new GameSpeedS2C(tickRate.tickRate()));
+                    replyConnection().send(new com.pvzce.common.network.packet.ServerMessageS2C(
                             "这一关的谱面按拍走，不能改速度。"));
                     return;
                 }
                 tickRate.setTickRate(PvzceTickRateManager.DEFAULT_TICK_RATE * speedIndex);
-                connection.send(new GameSpeedS2C(tickRate.tickRate()));
+                bridge.send(new GameSpeedS2C(tickRate.tickRate()));
             } else if (packet instanceof com.pvzce.common.network.packet.ChatC2S chat) {
                 say(chat.text());
             } else if (packet instanceof com.pvzce.common.network.packet.AiSettingsC2S ai) {

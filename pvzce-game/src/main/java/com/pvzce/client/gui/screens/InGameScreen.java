@@ -728,7 +728,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         pauseDialog.onClose(this::handlePauseDialogClosed);
         pauseDialog.setVisible(paused);
         if (paused) {
-            client.connection().send(new PauseGameC2S(true));
+            if (!client.isMultiplayer()) client.connection().send(new PauseGameC2S(true));
         }
         addWidget(pauseDialog);
         // Added last so the dialogue is drawn over the HUD, and as a modal so it - not the
@@ -745,7 +745,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 // read. Freeze the level, not the client: the portrait and the bubble are
                 // drawn by the client and keep animating.
                 dialogueHoldsPause = true;
-                client.connection().send(new PauseGameC2S(true));
+                if (!client.isMultiplayer()) client.connection().send(new PauseGameC2S(true));
             }
         }
         if ((dialogue == null || !dialogue.isActive()) && entryNanos == 0L) {
@@ -827,7 +827,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             // Same hold the opening conversation takes: the level freezes for as long as the player
             // takes to read, and the next line waits behind it.
             dialogueHoldsPause = true;
-            client.connection().send(new PauseGameC2S(true));
+            if (!client.isMultiplayer()) client.connection().send(new PauseGameC2S(true));
         }
     }
 
@@ -851,7 +851,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private void onDialogueFinished() {
         if (dialogueHoldsPause) {
             dialogueHoldsPause = false;
-            client.connection().send(new PauseGameC2S(false));
+            if (!client.isMultiplayer()) client.connection().send(new PauseGameC2S(false));
         }
         if (entryNanos == 0L) {
             entryNanos = System.nanoTime();
@@ -5470,7 +5470,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // Single-player integrated server: freeze level ticks while the pause
         // dialog is open. The music is held with it - a paused game whose song plays on is the
         // one thing a player listens for and concludes is broken.
-        client.connection().send(new PauseGameC2S(true));
+        if (!client.isMultiplayer()) client.connection().send(new PauseGameC2S(true));
         client.music().setPaused(true);
     }
 
@@ -5479,7 +5479,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             return;
         }
         paused = false;
-        client.connection().send(new PauseGameC2S(false));
+        if (!client.isMultiplayer()) client.connection().send(new PauseGameC2S(false));
         client.music().setPaused(false);
     }
 

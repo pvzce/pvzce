@@ -159,6 +159,13 @@ public final class PvzceConstants {
     public static final int WHACK_INITIAL_INTERVAL = 100;
     public static final int WHACK_FINAL_INTERVAL = 30;
     public static final int TICKS_PER_SECOND = 60;
+    public static final int MULTIPLAYER_PORT = 24860;
+    public static final int MULTIPLAYER_MAX_PLAYERS = 4;
+    public static final int NETWORK_TIMEOUT_MILLIS = 15_000;
+    public static final int NETWORK_HEARTBEAT_MILLIS = 3_000;
+    public static final int NETWORK_MAX_FRAME_BYTES = 2 * 1024 * 1024;
+    public static final int NETWORK_MAX_QUEUE_BYTES = 16 * 1024 * 1024;
+    public static final int MULTIPLAYER_RECONNECT_TICKS = 60 * TICKS_PER_SECOND;
     /**
      * How long before a weather change the roof shouts about it.
      *

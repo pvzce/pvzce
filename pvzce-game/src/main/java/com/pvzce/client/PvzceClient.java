@@ -79,7 +79,21 @@ public final class PvzceClient {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Client");
 
     private final com.pvzce.client.account.GameAccount account;
-    private final Connection connection;
+    private Connection connection;
+    private final Connection localConnection;
+    private com.pvzce.common.network.ContentSnapshot remoteContent;
+    private com.pvzce.common.network.packet.RoomS2C multiplayer;
+    private java.util.concurrent.CompletableFuture<Connection> connecting;
+    private String remoteAssets;
+    private String roomAddress = "";
+    private String roomNickname = "玩家";
+    private String reconnectToken = "";
+    private String multiplayerMessage = "";
+    private boolean remoteDisconnected;
+    private boolean leavingRemote;
+    private boolean returnToTitleAfterDisconnect;
+    private boolean suspendingLocal;
+
     private final Path gameDir;
     private final ClassLoader classLoader;
 
@@ -419,6 +433,7 @@ public final class PvzceClient {
                        com.pvzce.client.account.GameAccount account) {
         this.account = account;
         this.connection = connection;
+        this.localConnection = connection;
         this.gameDir = gameDir;
         this.classLoader = classLoader;
         // Settings are read here rather than in run(): the window is built from them, and a
@@ -497,7 +512,9 @@ public final class PvzceClient {
             clientTick++;
             account.tick();
 
+            tickNetworking();
             connection.tick();
+            if (connection != localConnection) localConnection.tick();
 
         smoke.beforeFrame();
 
@@ -570,6 +587,7 @@ public final class PvzceClient {
      *         waiting on the reload does not wait forever
      */
     public boolean reloadContent() {
+        if (isRemoteServer()) { multiplayerMessage = "请先离开联机房间，再重载资源包。"; return false; }
         shadowTextures.clear();
         if (resources == null) {
             // A windowless client (tests, tooling) never loaded a stack, so there is nothing to
@@ -666,6 +684,7 @@ public final class PvzceClient {
     public void onServerMessage(String message) {
         message = localizeServerMessage(message);
         lastServerMessage = message == null ? "" : message;
+        if (currentScreen() instanceof com.pvzce.client.gui.screens.MultiplayerScreen) multiplayerMessage = lastServerMessage;
         lastServerMessageNanos = System.nanoTime();
         serverMessageCount++;
         if (packReloadPending && serverMessageCount > packReloadBaseline) {
@@ -2236,7 +2255,152 @@ public final class PvzceClient {
         com.pvzce.client.gui.workshop.WorkshopScreen.editLevel(this, levelId, name, width, height);
     }
 
+    public boolean isMultiplayer() { return multiplayer != null && !multiplayer.state().equals("closed"); }
+    public boolean isRemoteServer() { return connection != localConnection; }
+    public com.pvzce.common.network.packet.RoomS2C multiplayer() { return multiplayer; }
+    public String multiplayerMessage() { return multiplayerMessage; }
+    public String roomAddress() { return roomAddress; }
+    public boolean connectingMultiplayer() { return suspendingLocal || connecting != null; }
+
+    public void hostMultiplayer(int port, boolean versus) {
+        connection.send(new com.pvzce.common.network.packet.RoomC2S("open", Integer.toString(port), versus ? "versus" : "coop"));
+    }
+
+    public void joinMultiplayer(String address, String nickname) {
+        if (connectingMultiplayer()) return;
+        if (!address.equals(roomAddress)) reconnectToken = "";
+        roomAddress = address; roomNickname = nickname;
+        multiplayerMessage = "正在连接…";
+        // Acknowledged barrier: the local server must finish saving before remote registries install.
+        suspendingLocal = true;
+        localConnection.send(new com.pvzce.common.network.packet.RoomC2S("suspend", "", ""));
+    }
+
+    private void connectMultiplayer() {
+        suspendingLocal = false;
+        connecting = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+            try {
+                remoteAssets = com.pvzce.common.network.ContentSnapshot.assets(resources);
+                String address = roomAddress.strip();
+                int port = com.pvzce.common.PvzceConstants.MULTIPLAYER_PORT;
+                String host = address;
+                if (address.startsWith("[")) {
+                    int close = address.indexOf(']');
+                    if (close < 0) throw new IllegalArgumentException("IPv6 地址需使用 [地址]:端口");
+                    host = address.substring(1, close);
+                    if (close + 1 < address.length()) port = Integer.parseInt(address.substring(close + 2));
+                } else if (address.indexOf(':') == address.lastIndexOf(':') && address.contains(":")) {
+                    int colon = address.lastIndexOf(':'); host = address.substring(0, colon);
+                    port = Integer.parseInt(address.substring(colon + 1));
+                }
+                return com.pvzce.common.network.TcpPacketTransport.connect(host, port);
+            } catch (Exception e) { throw new java.util.concurrent.CompletionException(e); }
+        });
+    }
+
+    private void tickNetworking() {
+        if (remoteDisconnected) {
+            remoteDisconnected = false;
+            restoreLocalSession();
+            setScreenReplacing(returnToTitleAfterDisconnect ? new TitleScreen(this)
+                    : new com.pvzce.client.gui.screens.MultiplayerScreen(this));
+            returnToTitleAfterDisconnect = false;
+        }
+        if (connecting == null || !connecting.isDone()) return;
+        var future = connecting; connecting = null;
+        try {
+            Connection remote = future.join();
+            localConnection.setListener(null);
+            connection = remote;
+            clearLevelClientState();
+            remoteContent = new com.pvzce.common.network.ContentSnapshot();
+            remote.setListener(new PvzceClientPacketListener(this, level));
+            var info = new com.google.gson.JsonObject();
+            info.addProperty("name", roomNickname);
+            info.addProperty("mods", com.pvzce.common.network.ContentSnapshot.mods());
+            info.addProperty("assets", remoteAssets);
+            remote.send(new com.pvzce.common.network.packet.RoomC2S("hello", info.toString(), reconnectToken));
+        } catch (java.util.concurrent.CompletionException e) {
+            multiplayerMessage = "连接失败：" + e.getCause().getMessage();
+        }
+    }
+
+    public void onMultiplayerContent(com.pvzce.common.network.packet.ContentS2C part) {
+        if (remoteContent == null) throw new IllegalStateException("本地连接不能安装远程内容");
+        if (remoteContent.accept(part, remoteAssets)) {
+            if (animations != null) animations.invalidate();
+            connection.send(new com.pvzce.common.network.packet.RoomC2S("content_ready", part.data(), ""));
+            multiplayerMessage = "内容同步完成";
+        }
+    }
+
+    public void onMultiplayerRoom(com.pvzce.common.network.packet.RoomS2C state) {
+        if (state.state().equals("error")) { connection.disconnect(state.message()); return; }
+        if (state.state().equals("suspended")) { if (suspendingLocal) connectMultiplayer(); return; }
+        multiplayer = state.state().equals("closed") ? null : state;
+        multiplayerMessage = state.message();
+        if (!state.token().isEmpty()) reconnectToken = state.token();
+        if (state.state().equals("lobby") && !(currentScreen() instanceof com.pvzce.client.gui.screens.ChooseSeedsScreen)
+                && !(currentScreen() instanceof com.pvzce.client.gui.screens.LevelSelectScreen)
+                && !(currentScreen() instanceof com.pvzce.client.gui.screens.LevelSetupScreen)) {
+            clearLevelClientState();
+            setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(this));
+        }
+    }
+
+    public void prepareMultiplayer() {
+        if (multiplayer == null || multiplayer.levelId().isEmpty()) return;
+        var info = findLevelInfo(multiplayer.levelId());
+        if (info == null) { multiplayerMessage = "正在等待关卡列表"; return; }
+        if (!multiplayer.host() && multiplayer.message().contains("1v1")) {
+            startLevelWithSeedsAndBuffs(info.id(), true, List.of(), List.of());
+        } else openSeedSelection(info, true);
+    }
+
+    public void onNetworkDisconnect(String reason) {
+        level.setDisconnected(reason);
+        if (connection != localConnection) {
+            multiplayerMessage = leavingRemote ? "已离开房间" : "连接断开：" + reason;
+            if (leavingRemote) reconnectToken = "";
+            leavingRemote = false;
+            remoteDisconnected = true;
+        }
+    }
+
+    private void restoreLocalSession() {
+        if (connection != localConnection) {
+            connection.setListener(null); connection.close(); connection = localConnection;
+        }
+        if (remoteContent != null) { remoteContent.close(); remoteContent = null; }
+        multiplayer = null;
+        localConnection.setListener(new PvzceClientPacketListener(this, level));
+        clearLevelClientState();
+        profile.reset();
+        profileLoaded = false;
+        levelList = List.of();
+        reloadContent();
+        localConnection.send(new com.pvzce.common.network.packet.RoomC2S("resume", "", ""));
+    }
+
+    public void leaveMultiplayer() {
+        suspendingLocal = false;
+        if (connecting != null) {
+            connecting.whenComplete((result, error) -> { if (result != null) result.close(); });
+            connecting = null;
+        }
+        if (connection != localConnection) {
+            leavingRemote = true;
+            connection.send(new com.pvzce.common.network.packet.RoomC2S("leave", "", ""));
+        } else connection.send(new com.pvzce.common.network.packet.RoomC2S("close", "", ""));
+        setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(this));
+    }
+
     public void showTitle() {
+        if (isRemoteServer()) {
+            returnToTitleAfterDisconnect = true;
+            leaveMultiplayer();
+            return;
+        }
         setScreenReplacing(new TitleScreen(this));
     }
 
@@ -2350,6 +2514,7 @@ public final class PvzceClient {
      * overwrite a server launched with its own.
      */
     public void syncAiSettings() {
+        if (connection != localConnection) return;
         com.pvzce.common.jev.AiSettings jev = config.jevSettings();
         com.pvzce.common.jev.AiSettings commander = config.commanderSettings();
         if (jev.configured() || commander.configured()) {
@@ -2503,6 +2668,7 @@ public final class PvzceClient {
         syncAiSettings();
         connection.send(new PlayLevelC2S(levelId, currentWorld, restart,
                 List.copyOf(selectedSeeds), List.copyOf(selectedBuffs), pendingHumanTeam));
+        if (isMultiplayer()) setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(this));
     }
 
     /**
@@ -2566,8 +2732,17 @@ public final class PvzceClient {
      * @param humanTeam the side's id, or blank for "the level decides"
      */
     public void enterLevelFromMenu(LevelListS2C.LevelInfo info, String humanTeam) {
+        if (isMultiplayer() && multiplayer.host() && info.hasRunningSave()) {
+            currentScreen().showDialog(com.pvzce.client.gui.screens.ConfirmDialog.restart(this,
+                    () -> enterLevelAfterSaveDecision(info, humanTeam), null));
+            return;
+        }
+        enterLevelAfterSaveDecision(info, humanTeam);
+    }
+
+    private void enterLevelAfterSaveDecision(LevelListS2C.LevelInfo info, String humanTeam) {
         pendingHumanTeam = humanTeam == null ? "" : humanTeam;
-        if (info.hasRunningSave()) {
+        if (info.hasRunningSave() && !isMultiplayer()) {
             requestLevel(info.id(), false);
         } else if (asksForTeamChoice(info, pendingHumanTeam)) {
             // The level names more than one side, so which one to play is a real question and
@@ -2886,7 +3061,7 @@ public final class PvzceClient {
                 // A conveyor level: nothing to choose, but still worth a look at the lawn, the
                 // conversation and the zombies - see ChooseSeedsScreen's pass-through.
                 dealsItsOwnCards(info.id()),
-                info.payload().buffPool(), info.payload().maxBuffSlots(),
+                isRemoteServer() ? List.of() : info.payload().buffPool(), isRemoteServer() ? 0 : info.payload().maxBuffSlots(),
                 lockedBuffsFor(info.id()), autoBuffSelectionFor(info.id(), initialBuffs),
                 nextRound, nextRoundNumber,
                 // The fog world's first sight of the board is this screen, so the fog is part of
@@ -3055,6 +3230,7 @@ public final class PvzceClient {
     }
 
     public void leaveLevel() {
+        if (connection != localConnection) { leaveMultiplayer(); return; }
         if (workshopTesting()) { endWorkshopTest(); return; }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
@@ -3100,6 +3276,7 @@ public final class PvzceClient {
      * makes, because "restart" is that entry minus the old run.
      */
     public void restartCurrentLevel() {
+        if (isMultiplayer() && !multiplayer.host()) return;
         String levelId = level.levelId();
         // A restart is the same matchup: the side comes from the run being left, not from the
         // level's default, or restarting a versus match the player is losing as the zombies would
@@ -3270,6 +3447,7 @@ public final class PvzceClient {
      * it paid out, so the finished level's row is current.
      */
     public void finishLevelAndShowList() {
+        if (connection != localConnection) { leaveMultiplayer(); return; }
         if (workshopTesting()) { endWorkshopTest(); return; }
         connection.send(new LeaveLevelC2S());
         clearLevelClientState();
