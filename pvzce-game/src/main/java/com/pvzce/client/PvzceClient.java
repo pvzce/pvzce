@@ -2337,27 +2337,56 @@ public final class PvzceClient {
     public void onMultiplayerRoom(com.pvzce.common.network.packet.RoomS2C state) {
         if (state.state().equals("error")) { connection.disconnect(state.message()); return; }
         if (state.state().equals("suspended")) { if (suspendingLocal) connectMultiplayer(); return; }
+        boolean selectedLevelChanged = multiplayer != null && !multiplayer.levelId().equals(state.levelId());
         multiplayer = state.state().equals("closed") ? null : state;
+        if (multiplayer == null || !state.levelId().equals(pendingMultiplayerPreparation)) {
+            pendingMultiplayerPreparation = null;
+        }
         multiplayerMessage = state.message();
         if (!state.token().isEmpty()) reconnectToken = state.token();
-        if (state.state().equals("lobby") && !(currentScreen() instanceof com.pvzce.client.gui.screens.ChooseSeedsScreen)
+        if (state.state().equals("lobby") && (selectedLevelChanged
+                || !(currentScreen() instanceof com.pvzce.client.gui.screens.ChooseSeedsScreen)
                 && !(currentScreen() instanceof com.pvzce.client.gui.screens.LevelSelectScreen)
-                && !(currentScreen() instanceof com.pvzce.client.gui.screens.LevelSetupScreen)) {
+                && !(currentScreen() instanceof com.pvzce.client.gui.screens.LevelSetupScreen))) {
             clearLevelClientState();
             setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(this));
         }
     }
 
+    private String pendingMultiplayerPreparation;
+
     public void prepareMultiplayer() {
-        if (multiplayer == null || multiplayer.levelId().isEmpty()) return;
-        var info = findLevelInfo(multiplayer.levelId());
-        if (info == null) { multiplayerMessage = "正在等待关卡列表"; return; }
+        if (multiplayer == null) return;
+        if (multiplayer.levelId().isEmpty()) {
+            multiplayerMessage = "请等待房主选择关卡";
+            return;
+        }
+        if (pendingMultiplayerPreparation != null) return;
+        // The join-time list may describe a different host world. Request the room's current
+        // profile/card pool, and continue this same click when its reply arrives.
+        pendingMultiplayerPreparation = multiplayer.levelId();
+        multiplayerMessage = "正在同步关卡与卡组…";
+        connection.send(new com.pvzce.common.network.packet.RequestLevelListC2S(currentWorld));
+    }
+
+    private void openMultiplayerPreparation() {
+        if (pendingMultiplayerPreparation == null) return;
+        String wanted = pendingMultiplayerPreparation;
+        pendingMultiplayerPreparation = null;
+        if (multiplayer == null || !multiplayer.levelId().equals(wanted)
+                || !(currentScreen() instanceof com.pvzce.client.gui.screens.MultiplayerScreen)) return;
+        var info = findLevelInfo(wanted);
+        if (info == null) {
+            multiplayerMessage = "房主未提供所选关卡的数据，请房主重新选择关卡";
+            return;
+        }
         if (!multiplayer.host() && multiplayer.message().contains("1v1")) {
             startLevelWithSeedsAndBuffs(info.id(), true, List.of(), List.of());
         } else openSeedSelection(info, true);
     }
 
     public void onNetworkDisconnect(String reason) {
+        pendingMultiplayerPreparation = null;
         level.setDisconnected(reason);
         if (connection != localConnection) {
             multiplayerMessage = leavingRemote ? "已离开房间" : "连接断开：" + reason;
@@ -3679,6 +3708,7 @@ public final class PvzceClient {
 
     public void setLevelList(List<LevelListS2C.LevelInfo> levelList) {
         this.levelList = levelList == null ? List.of() : List.copyOf(levelList);
+        openMultiplayerPreparation();
         // A round chooser that could not be built when it was asked for now can be: it is the
         // level list that carries the card pool, the board and the level's name.
         openPendingRoundChooser();

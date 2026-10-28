@@ -246,6 +246,8 @@ final class MultiplayerRoom implements AutoCloseable {
         started = false;
         seats.values().forEach(s -> { s.ready = false; s.entered = false; });
         world = server.currentWorld(); hostReady = true;
+        for (Seat seat : seats.values()) if (seat.admitted && seat.connection != null)
+            withActor(seat, () -> server.sendRoomLevelList(world));
         publish();
     }
 

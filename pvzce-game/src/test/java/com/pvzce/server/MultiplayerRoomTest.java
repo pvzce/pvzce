@@ -48,6 +48,30 @@ class MultiplayerRoomTest {
                 + "; peers=" + peers.stream().map(p -> p.room + ":" + p.connection.disconnectReason()).toList());
     }
 
+    @Test void selectingAWorldRefreshesGuestPreparationDataBeforeTheRoomAnnouncement(@TempDir Path dir) throws Exception {
+        try (var host = ServerHarness.createWithWorld(dir, "unlocked", true)) {
+            host.createWorld("fresh", false);
+            host.send(new RoomC2S("open", "0", "coop"));
+            host.awaitPacket(RoomS2C.class, 15_000);
+            try (var guest = new Peer(host.server().multiplayerPort(), ContentSnapshot.assets(host.server().resourceManager()), "")) {
+                var peers = List.of(guest);
+                await(host, peers, () -> guest.room != null);
+                assertFalse(guest.packets.stream().filter(ProfileS2C.class::isInstance)
+                        .map(ProfileS2C.class::cast).reduce((a, b) -> b).orElseThrow().unlockAll());
+                guest.packets.clear();
+                host.send(new PlayLevelC2S(LEVEL, "unlocked", true, CARDS));
+                await(host, peers, () -> guest.room.levelId().equals(LEVEL));
+                assertTrue(guest.packets.stream().filter(ProfileS2C.class::isInstance)
+                        .map(ProfileS2C.class::cast).reduce((a, b) -> b).orElseThrow().unlockAll());
+                int list = java.util.stream.IntStream.range(0, guest.packets.size())
+                        .filter(i -> guest.packets.get(i) instanceof LevelListS2C).findFirst().orElseThrow();
+                int room = java.util.stream.IntStream.range(0, guest.packets.size())
+                        .filter(i -> guest.packets.get(i) instanceof RoomS2C r && r.levelId().equals(LEVEL)).findFirst().orElseThrow();
+                assertTrue(list < room, "The announced level must already have its current card pool");
+            }
+        }
+    }
+
     @Test void tcpCoopKeepsDecksPrivateArbitratesPlacementAndResumesASeat(@TempDir Path dir) throws Exception {
         try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
             host.send(new RoomC2S("open", "0", "coop"));
