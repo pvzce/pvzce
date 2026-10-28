@@ -113,9 +113,14 @@ public final class WorldLighting {
             vec3 materialLighting(vec3 albedo, vec3 p, vec3 normal, float roughness, float reflectionStrength) {
                 vec3 sun = normalize(uShadowLights[0].xyz);
                 float visibility = lightVisibility(p, 0);
-                vec3 daySky = mix(illuminationColor(%d), illuminationColor(%d), mix(1.0, uCelestialElevation, uCelestialTint));
+                float highSun = smoothstep(%s, %s, uCelestialElevation);
+                float golden = (1.0 - highSun) * (1.0 - uSceneNight) * uCelestialTint;
+                // Let the illuminant define the phase palette without discarding painted luminance detail.
+                float chromaReduction = uSceneNight * %s + golden * %s;
+                albedo = mix(albedo, vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722))), chromaReduction);
+                vec3 daySky = mix(vec3(1.0), mix(illuminationColor(%d), illuminationColor(%d), highSun), uCelestialTint);
                 vec3 sky = mix(daySky, illuminationColor(%d), uSceneNight);
-                vec3 sunlight = mix(illuminationColor(%d), uCelestialColor, uCelestialTint);
+                vec3 sunlight = mix(vec3(1.0), uCelestialColor, uCelestialTint);
                 float ambient = mix(%s, %s, uSceneNight);
                 float direct = uCelestialStrength;
                 vec3 view = normalize(vec3(0.0, -0.85, 1.0));
@@ -132,6 +137,11 @@ public final class WorldLighting {
                 vec3 reflected = reflect(-view, normal);
                 float horizon = smoothstep(-0.25, 0.65, reflected.z);
                 vec3 environment = mix(ground, sky * (ambient + direct * 0.35), horizon);
+                // The bright sky around the active sun/moon reflects as a roughness-filtered lobe.
+                // Visibility removes this directional light in shadow; the dim sky fill remains.
+                float celestialLobe = pow(max(dot(reflected, sun), 0.0), mix(64.0, 4.0, roughness));
+                float reflectedGain = mix(%s, %s, uSceneNight) * mix(1.0, %s, golden);
+                environment += sunlight * direct * visibility * celestialLobe * reflectedGain;
                 float nv = max(dot(normal, view), 0.0);
                 float environmentFresnel = 0.04 + (max(0.04, 1.0 - roughness) - 0.04) * pow(1.0 - nv, 5.0);
                 result += environment * environmentFresnel * (1.0 - roughness * 0.55)
@@ -158,11 +168,14 @@ public final class WorldLighting {
                     PvzceConstants.LIGHT_ENTITY_ROUGHNESS, PvzceConstants.LIGHT_GRASS_ROUGHNESS,
                     PvzceConstants.LIGHT_SOIL_ROUGHNESS, PvzceConstants.LIGHT_STONE_ROUGHNESS,
                     PvzceConstants.LIGHT_CONTACT_STRENGTH,
+                    PvzceConstants.LIGHT_GOLDEN_HOUR_START, PvzceConstants.LIGHT_GOLDEN_HOUR_END,
+                    PvzceConstants.LIGHT_NIGHT_CHROMA_REDUCTION, PvzceConstants.LIGHT_GOLDEN_CHROMA_REDUCTION,
                     PvzceConstants.LIGHT_HORIZON_SKY_COLOR, PvzceConstants.LIGHT_DAY_SKY_COLOR,
                     PvzceConstants.LIGHT_NIGHT_SKY_COLOR,
-                    PvzceConstants.LIGHT_DAY_DIRECT_COLOR,
                     PvzceConstants.LIGHT_DAY_AMBIENT, PvzceConstants.LIGHT_NIGHT_AMBIENT,
                     PvzceConstants.LIGHT_GROUND_REFLECTANCE, PvzceConstants.LIGHT_GROUND_BOUNCE,
+                    PvzceConstants.LIGHT_DAY_CELESTIAL_REFLECTION, PvzceConstants.LIGHT_NIGHT_CELESTIAL_REFLECTION,
+                    PvzceConstants.LIGHT_GOLDEN_REFLECTION_GAIN,
                     PvzceConstants.LIGHT_ENVIRONMENT_REFLECTION,
                     PvzceConstants.LIGHT_LOCAL_DAY_GAIN, PvzceConstants.LIGHT_LOCAL_NIGHT_GAIN);
 

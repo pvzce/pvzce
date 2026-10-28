@@ -40,6 +40,12 @@ class TimeOfDayLightingTest {
         var rise = TimeOfDayLighting.compute(3800, 3600, 3600, 9, 5);
         var midnight = TimeOfDayLighting.compute(5400, 3600, 3600, 9, 5);
         assertTrue(midnight.sunY() > rise.sunY(), "The moon also changes elevation during a night cycle");
+        var morning = TimeOfDayLighting.compute(240, 3600, 3600, 9, 5);
+        var evening = TimeOfDayLighting.compute(3360, 3600, 3600, 9, 5);
+        var earlySun = TimeOfDayLighting.celestial(morning.sunX(), morning.sunY(), 9, 5, 0);
+        var lateSun = TimeOfDayLighting.celestial(evening.sunX(), evening.sunY(), 9, 5, 0);
+        assertTrue(earlySun.red()-earlySun.blue() > 0.35F, "Golden light must last beyond the horizon itself");
+        assertTrue(lateSun.green() < earlySun.green()-0.08F, "Evening shifts from morning gold toward copper");
     }
 
     /** A level with no day is night immediately - not after a dusk nobody will ever see. */

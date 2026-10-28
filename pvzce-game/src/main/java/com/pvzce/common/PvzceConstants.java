@@ -8,18 +8,21 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
-    public static final float LIGHT_DAY_AMBIENT = 0.30F;
-    public static final float LIGHT_DAY_DIRECT = 0.78F;
-    public static final float LIGHT_NIGHT_AMBIENT = 0.38F;
-    public static final float LIGHT_NIGHT_DIRECT = 0.50F;
+    public static final float LIGHT_DAY_AMBIENT = 0.44F;
+    public static final float LIGHT_DAY_DIRECT = 0.92F;
+    public static final float LIGHT_NIGHT_AMBIENT = 0.62F;
+    public static final float LIGHT_NIGHT_DIRECT = 0.72F;
     public static final float LIGHT_HORIZON_ANGLE = 12F, LIGHT_HIGH_ANGLE = 60F;
-    public static final float LIGHT_LOW_SUN_STRENGTH = 0.45F, LIGHT_LOW_MOON_STRENGTH = 0.55F;
-    public static final int LIGHT_HORIZON_SUN_COLOR = 0xFFE0B8;
-    public static final int LIGHT_HORIZON_SKY_COLOR = 0xFFE6D1;
-    public static final int LIGHT_DAY_SKY_COLOR = 0xF5FAFF;
-    public static final int LIGHT_NIGHT_SKY_COLOR = 0xB8CCF5;
+    public static final float LIGHT_LOW_SUN_STRENGTH = 0.75F, LIGHT_LOW_MOON_STRENGTH = 0.65F;
+    public static final float LIGHT_GOLDEN_HOUR_START = 0.10F, LIGHT_GOLDEN_HOUR_END = 0.85F;
+    public static final int LIGHT_HORIZON_SUN_COLOR = 0xFFD28A, LIGHT_DUSK_SUN_COLOR = 0xFFAA64;
+    public static final int LIGHT_HORIZON_SKY_COLOR = 0xFFDEB5;
+    public static final int LIGHT_DAY_SKY_COLOR = 0xE1EDFF;
+    public static final int LIGHT_NIGHT_SKY_COLOR = 0x7DA7E8;
     public static final int LIGHT_DAY_DIRECT_COLOR = 0xFFFAF0;
-    public static final int LIGHT_NIGHT_DIRECT_COLOR = 0xC7E0FF;
+    public static final int LIGHT_NIGHT_DIRECT_COLOR = 0xA4C8FF;
+    public static final float LIGHT_NIGHT_CHROMA_REDUCTION = 0.40F;
+    public static final float LIGHT_GOLDEN_CHROMA_REDUCTION = 0.20F;
     public static final float LIGHT_TONEMAP_SHOULDER = 0.6F;
     public static final float LIGHT_LOCAL_DAY_GAIN = 0.8F;
     public static final float LIGHT_LOCAL_NIGHT_GAIN = 3.5F;
@@ -27,6 +30,8 @@ public final class PvzceConstants {
     public static final float LIGHT_ENTITY_ROUGHNESS = 0.52F;
     public static final float LIGHT_GRASS_ROUGHNESS = 0.90F, LIGHT_SOIL_ROUGHNESS = 0.80F, LIGHT_STONE_ROUGHNESS = 0.58F;
     public static final float LIGHT_ENVIRONMENT_REFLECTION = 0.85F;
+    public static final float LIGHT_DAY_CELESTIAL_REFLECTION = 1.6F, LIGHT_NIGHT_CELESTIAL_REFLECTION = 3.2F;
+    public static final float LIGHT_GOLDEN_REFLECTION_GAIN = 2F;
     public static final float LIGHT_GROUND_BOUNCE = 0.22F;
     public static final int LIGHT_GROUND_REFLECTANCE = 0x718453;
     public static final int LIGHT_MAX_CONTACTS = 64;

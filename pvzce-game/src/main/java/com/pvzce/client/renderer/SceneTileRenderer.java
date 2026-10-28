@@ -520,6 +520,10 @@ public final class SceneTileRenderer {
                 if (!SceneBoard.DEFAULT_SURFACE.equals(entry.surfaceId())
                         || !client.level().sceneVisibility().hides(entry.baseId())) continue;
                 var profile = board.cell(entry.surfaceId(), entry.x(), entry.y()).profile();
+                // A finished lawn extends past the playable cells. Fade its relit overlay into that art.
+                if (profile.equals(SurfaceProfile.FLAT)) {
+                    RenderSystem.shader().setLawnBlend(0, 0, client.level().width(), client.level().height(), 1, 1);
+                } else RenderSystem.shader().clearLawnBlend();
                 float x = entry.x(), y = entry.y(), right = x + 1F;
                 float bl = y + profile.at(x, y), br = y + profile.at(right, y);
                 float tl = y + 1F + profile.at(x, y + 1F), tr = y + 1F + profile.at(right, y + 1F);
@@ -533,6 +537,7 @@ public final class SceneTileRenderer {
                         -1F, 1F, 1F, 1F, 1F);
             }
         } finally {
+            RenderSystem.shader().clearLawnBlend();
             RenderSystem.shader().shadows().receiver(false, 0F);
         }
     }

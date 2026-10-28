@@ -39,11 +39,16 @@ public final class TimeOfDayLighting {
         float x = (lightX / Math.max(1, columns) - 0.5F) * 2F;
         float y = PvzceConstants.SHADOW_SUN_DEPTH;
         float z = (float)Math.tan(Math.toRadians(angle)) * (float)Math.sqrt(x*x + y*y);
-        int sunrise = PvzceConstants.LIGHT_HORIZON_SUN_COLOR, noon = PvzceConstants.LIGHT_DAY_DIRECT_COLOR;
+        int sunrise = PvzceConstants.LIGHT_HORIZON_SUN_COLOR, sunset = PvzceConstants.LIGHT_DUSK_SUN_COLOR;
+        int noon = PvzceConstants.LIGHT_DAY_DIRECT_COLOR;
         int moon = PvzceConstants.LIGHT_NIGHT_DIRECT_COLOR;
-        float r = channel(sunrise, noon, moon, 16, elevation, night);
-        float g = channel(sunrise, noon, moon, 8, elevation, night);
-        float b = channel(sunrise, noon, moon, 0, elevation, night);
+        float highSun = MathUtil.clamp01((elevation - PvzceConstants.LIGHT_GOLDEN_HOUR_START)
+                / (PvzceConstants.LIGHT_GOLDEN_HOUR_END - PvzceConstants.LIGHT_GOLDEN_HOUR_START));
+        highSun = highSun * highSun * (3F - 2F * highSun);
+        float west = MathUtil.clamp01(lightX / columns);
+        float r = channel(sunrise, sunset, noon, moon, 16, west, highSun, night);
+        float g = channel(sunrise, sunset, noon, moon, 8, west, highSun, night);
+        float b = channel(sunrise, sunset, noon, moon, 0, west, highSun, night);
         float sunlight = PvzceConstants.LIGHT_DAY_DIRECT
                 * MathUtil.lerp(PvzceConstants.LIGHT_LOW_SUN_STRENGTH, 1F, elevation);
         float moonlight = PvzceConstants.LIGHT_NIGHT_DIRECT
@@ -51,8 +56,9 @@ public final class TimeOfDayLighting {
         return new CelestialLight(x, y, z, r, g, b, MathUtil.lerp(sunlight, moonlight, night), elevation);
     }
 
-    private static float channel(int sunrise, int noon, int moon, int shift, float elevation, float night) {
-        float solar = MathUtil.lerp((sunrise >> shift) & 255, (noon >> shift) & 255, elevation) / 255F;
+    private static float channel(int sunrise, int sunset, int noon, int moon, int shift, float west, float highSun, float night) {
+        float horizon = MathUtil.lerp((sunrise >> shift) & 255, (sunset >> shift) & 255, west);
+        float solar = MathUtil.lerp(horizon, (noon >> shift) & 255, highSun) / 255F;
         return MathUtil.lerp(solar, ((moon >> shift) & 255) / 255F, night);
     }
 
