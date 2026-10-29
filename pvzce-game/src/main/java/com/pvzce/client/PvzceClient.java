@@ -552,6 +552,7 @@ public final class PvzceClient {
         connection.send(new LeaveLevelC2S());
         connection.tick();
         connection.disconnect("window closed");
+        screens.close();
         if (music != null) {
             music.stopAll();
         }
@@ -2283,19 +2284,8 @@ public final class PvzceClient {
         connecting = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
             try {
                 remoteAssets = com.pvzce.common.network.ContentSnapshot.assets(resources);
-                String address = roomAddress.strip();
-                int port = com.pvzce.common.PvzceConstants.MULTIPLAYER_PORT;
-                String host = address;
-                if (address.startsWith("[")) {
-                    int close = address.indexOf(']');
-                    if (close < 0) throw new IllegalArgumentException("IPv6 地址需使用 [地址]:端口");
-                    host = address.substring(1, close);
-                    if (close + 1 < address.length()) port = Integer.parseInt(address.substring(close + 2));
-                } else if (address.indexOf(':') == address.lastIndexOf(':') && address.contains(":")) {
-                    int colon = address.lastIndexOf(':'); host = address.substring(0, colon);
-                    port = Integer.parseInt(address.substring(colon + 1));
-                }
-                return com.pvzce.common.network.TcpPacketTransport.connect(host, port);
+                var address = com.pvzce.common.network.ServerAddress.parse(roomAddress);
+                return com.pvzce.common.network.TcpPacketTransport.connect(address.host(), address.port());
             } catch (Exception e) { throw new java.util.concurrent.CompletionException(e); }
         });
     }
@@ -2421,6 +2411,7 @@ public final class PvzceClient {
     }
 
     public void leaveMultiplayer() {
+        boolean cancelledConnection = connectingMultiplayer();
         suspendingLocal = false;
         if (connecting != null) {
             connecting.whenComplete((result, error) -> { if (result != null) result.close(); });
@@ -2429,11 +2420,15 @@ public final class PvzceClient {
         if (connection != localConnection) {
             leavingRemote = true;
             connection.send(new com.pvzce.common.network.packet.RoomC2S("leave", "", ""));
-        } else connection.send(new com.pvzce.common.network.packet.RoomC2S("close", "", ""));
+        } else {
+            connection.send(new com.pvzce.common.network.packet.RoomC2S("close", "", ""));
+            if (cancelledConnection) localConnection.send(new com.pvzce.common.network.packet.RoomC2S("resume", "", ""));
+        }
         setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(this));
     }
 
     public void showTitle() {
+        if (connectingMultiplayer()) leaveMultiplayer();
         if (isRemoteServer()) {
             returnToTitleAfterDisconnect = true;
             leaveMultiplayer();

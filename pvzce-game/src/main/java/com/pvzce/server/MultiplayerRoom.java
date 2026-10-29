@@ -23,6 +23,7 @@ final class MultiplayerRoom implements AutoCloseable {
     private final java.util.concurrent.Semaphore handshakes = new java.util.concurrent.Semaphore(PvzceConstants.MULTIPLAYER_MAX_PLAYERS * 2);
     private final ArrayBlockingQueue<Connection> accepted = new ArrayBlockingQueue<>(PvzceConstants.MULTIPLAYER_MAX_PLAYERS);
     private volatile ServerSocket listener;
+    private LanDiscovery.Advertiser lan;
     private Seat actor;
     private boolean versus;
     private boolean started;
@@ -350,6 +351,11 @@ final class MultiplayerRoom implements AutoCloseable {
 
     private void publish() {
         if (!open()) return;
+        String roomName = (world == null ? "PVZCE" : world) + (versus ? " · 真人对战" : " · 合作闯关");
+        var announcement = new LanDiscovery.Announcement(roomName.substring(0, Math.min(64, roomName.length())), port(),
+                seats.size() + 1, versus ? 2 : PvzceConstants.MULTIPLAYER_MAX_PLAYERS, versus, started);
+        if (lan == null) lan = new LanDiscovery.Advertiser(announcement);
+        else lan.update(announcement);
         String id = !hostReady || server.level() == null ? "" : server.level().def().id().toString();
         String hostTeam = id.isEmpty() ? "" : server.level().humanTeamId().toString();
         String guestTeam = id.isEmpty() ? "" : guestTeam().toString();
@@ -377,6 +383,7 @@ final class MultiplayerRoom implements AutoCloseable {
     }
 
     @Override public void close() {
+        if (lan != null) { lan.close(); lan = null; }
         ServerSocket socket = listener; listener = null;
         if (socket != null) try { socket.close(); } catch (IOException ignored) { }
         for (Seat seat : List.copyOf(seats.values())) remove(seat);

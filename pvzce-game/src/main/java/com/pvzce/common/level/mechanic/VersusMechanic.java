@@ -144,10 +144,12 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         // played from the plant side gives the player the level's own 400 and its own sky rate.
         Team ai = aiTeam(level);
         boolean plantIsTheAi = !level.humanVersus() && plant != null && ai == plant;
-        if (plant != null && data.plantInitialSun() > 0) {
+        int plantOpening = level.humanVersus()
+                ? com.pvzce.common.PvzceConstants.MULTIPLAYER_VERSUS_PLANT_INITIAL_SUN : data.plantInitialSun();
+        if (plant != null && plantOpening > 0) {
             plant.addResource(PvzceIds.SUN, plantIsTheAi
-                    ? scaleSun(data.plantInitialSun(), Math.max(100, data.plantAiInitialSunPercent()))
-                    : data.plantInitialSun());
+                    ? scaleSun(plantOpening, Math.max(100, data.plantAiInitialSunPercent()))
+                    : plantOpening);
         }
         if (zombie != null && data.zombieInitialSun() > 0) {
             zombie.addResource(PvzceIds.SUN, data.zombieInitialSun());

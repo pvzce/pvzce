@@ -166,6 +166,15 @@ public final class PvzceConstants {
     public static final int TICKS_PER_SECOND = 60;
     public static final int MULTIPLAYER_PORT = 24860;
     public static final int MULTIPLAYER_MAX_PLAYERS = 4;
+    public static final int MULTIPLAYER_VERSUS_PLANT_INITIAL_SUN = 50;
+    public static final int SERVER_LIST_LIMIT = 128;
+    public static final int SERVER_LIST_MAX_BYTES = 65536;
+    public static final String LAN_GROUP = "239.255.24.86";
+    public static final int LAN_PORT = 24861;
+    public static final int LAN_ADVERTISE_MILLIS = 1000;
+    public static final int LAN_EXPIRY_MILLIS = 5000;
+    public static final int LAN_MAX_BYTES = 512;
+    public static final int LAN_MAX_ROOMS = 64;
     public static final int NETWORK_TIMEOUT_MILLIS = 15_000;
     public static final int NETWORK_HEARTBEAT_MILLIS = 3_000;
     public static final int NETWORK_MAX_FRAME_BYTES = 2 * 1024 * 1024;

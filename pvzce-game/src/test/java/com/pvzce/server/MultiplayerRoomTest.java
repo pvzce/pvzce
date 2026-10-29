@@ -229,7 +229,7 @@ class MultiplayerRoomTest {
                 assertEquals(guestTeam, guest.init.controlledTeamId());
                 assertEquals(hostTeam, host.server().level().humanTeamId().toString());
                 assertTrue(host.server().level().humanVersus());
-                int opening = host.server().level().versusData().plantInitialSun();
+                int opening = 50;
                 assertEquals(opening, host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
                 assertTrue(host.server().level().entities().stream().noneMatch(e -> e instanceof com.pvzce.server.entity.PlantEntity));
                 var opponent = versusState(guest.packets);

@@ -74,6 +74,17 @@ class ScreenNavigationTest {
         assertEquals(List.of("init", "render", "render"), events, "Initialization runs once; rendering does not tick the new screen");
     }
 
+    @Test void closingTheStackReleasesEveryPageOnce() throws Exception {
+        var stack = new ScreenStack(newClient());
+        var root = new TrackingScreen(newClient());
+        var form = new TrackingScreen(newClient());
+        stack.replace(root); stack.push(form);
+        stack.close(); stack.close();
+        assertEquals(1, root.removals);
+        assertEquals(1, form.removals);
+        assertEquals(0, stack.depth());
+    }
+
     /** Records whether it was told it is leaving. */
     private static class TrackingScreen extends Screen {
         private int removals;

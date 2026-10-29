@@ -35,7 +35,7 @@ import java.util.List;
  * {@link Screen#onRemoved()} exactly once - including the ones a root replacement discards
  * wholesale, which is the path that used to leak silently.
  */
-public final class ScreenStack {
+public final class ScreenStack implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger("PVZCE/Client");
 
     private final PvzceClient client;
@@ -163,6 +163,8 @@ public final class ScreenStack {
             screen.onRemoved();
         }
     }
+
+    @Override public void close() { bringDown(); }
 
     private static void requireScreen(Screen screen) {
         if (screen == null) {

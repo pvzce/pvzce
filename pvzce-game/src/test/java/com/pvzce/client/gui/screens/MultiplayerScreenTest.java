@@ -32,6 +32,103 @@ class MultiplayerScreenTest {
         }
     }
 
+    @Test void bookmarksCanBeAddedEditedCancelledAndJoinedThroughWidgets() throws Exception {
+        try (var h = ClientHarness.create("server-browser-ui")) {
+            var client = h.client(); window(client);
+            try {
+                client.openScreen(new MultiplayerScreen(client));
+                var browser = client.currentScreen();
+                click(browser, "添加服务器");
+                var form = assertInstanceOf(ServerEntryScreen.class, client.currentScreen());
+                form.initIfNeeded();
+                var fields = form.widgets().stream().filter(com.pvzce.client.gui.components.EditBox.class::isInstance)
+                        .map(com.pvzce.client.gui.components.EditBox.class::cast).toList();
+                fields.get(0).setValue("本地合作"); fields.get(1).setValue("localhost:24862");
+                form.onResize(); form.initIfNeeded();
+                click(form, "保存");
+                assertSame(browser, client.currentScreen());
+                var lists = browser.widgets().stream().filter(com.pvzce.client.gui.components.AbstractSelectionList.class::isInstance)
+                        .map(com.pvzce.client.gui.components.AbstractSelectionList.class::cast).toList();
+                var servers = lists.getFirst();
+                assertEquals(3, servers.visibleCount());
+                assertEquals(1, servers.entries().size());
+                assertEquals(1, new com.pvzce.client.config.SavedServers(client.gameDir()).entries().size());
+                click(browser, "编辑");
+                var edit = client.currentScreen(); edit.initIfNeeded();
+                var address = edit.widgets().stream().filter(com.pvzce.client.gui.components.EditBox.class::isInstance)
+                        .map(com.pvzce.client.gui.components.EditBox.class::cast).toList().get(1);
+                address.setValue("localhost:24863"); click(edit, "取消");
+                assertEquals("localhost:24862", new com.pvzce.client.config.SavedServers(client.gameDir()).entries().getFirst().address());
+                click(browser, "加入服务器");
+                assertEquals("localhost:24862", client.roomAddress());
+                assertEquals(List.of(new RoomC2S("suspend", "", "")), h.sentPackets());
+                assertTrue(client.connectingMultiplayer());
+            } finally { client.showTitle(); }
+        }
+    }
+
+    @Test void directConnectionValidatesInputAndDoesNotSaveABookmark() throws Exception {
+        try (var h = ClientHarness.create("server-direct-ui")) {
+            var client = h.client(); window(client);
+            try {
+                client.openScreen(new MultiplayerScreen(client));
+                click(client.currentScreen(), "直接连接");
+                var form = assertInstanceOf(ServerEntryScreen.class, client.currentScreen());
+                form.initIfNeeded();
+                var address = (com.pvzce.client.gui.components.EditBox)form.widgets().stream()
+                        .filter(com.pvzce.client.gui.components.EditBox.class::isInstance).findFirst().orElseThrow();
+                address.setValue("host:70000"); click(form, "连接");
+                assertSame(form, client.currentScreen()); assertTrue(h.sentPackets().isEmpty());
+                address.setValue("[::1]:24862"); click(form, "连接");
+                assertInstanceOf(MultiplayerScreen.class, client.currentScreen());
+                assertEquals("[::1]:24862", client.roomAddress());
+                assertEquals(List.of(new RoomC2S("suspend", "", "")), h.sentPackets());
+                assertTrue(new com.pvzce.client.config.SavedServers(client.gameDir()).entries().isEmpty());
+                click(client.currentScreen(), "返回");
+                assertInstanceOf(TitleScreen.class, client.currentScreen());
+                assertFalse(client.connectingMultiplayer());
+                assertEquals(List.of(new RoomC2S("suspend", "", ""), new RoomC2S("close", "", ""),
+                        new RoomC2S("resume", "", "")), h.sentPackets());
+                client.onMultiplayerRoom(new RoomS2C("suspended", "", "", "", true, List.of(), "", false, "", false, false));
+                assertFalse(client.connectingMultiplayer(), "Late suspend acknowledgement must not reconnect after cancellation");
+            } finally { client.showTitle(); }
+        }
+    }
+
+    @Test void lanRowsRejectFullRoomsAndJoinAvailableRoomsWithOneClick() throws Exception {
+        try (var h = ClientHarness.create("server-lan-ui")) {
+            var client = h.client(); window(client);
+            var screen = new MultiplayerScreen(client);
+            client.openScreen(screen); screen.initIfNeeded();
+            var field = MultiplayerScreen.class.getDeclaredField("discovery"); field.setAccessible(true);
+            ((LanDiscovery.Browser)field.get(screen)).close();
+            var constructor = LanDiscovery.Browser.class.getDeclaredConstructor(int.class); constructor.setAccessible(true);
+            var scanner = constructor.newInstance(0);
+            field.set(screen, scanner);
+            var accept = LanDiscovery.Browser.class.getDeclaredMethod("accept", byte[].class, java.net.InetAddress.class, long.class);
+            accept.setAccessible(true);
+            String prefix = "PVZCE_LAN\n" + PvzcePackets.PROTOCOL_VERSION + "\n24862\n";
+            var address = java.net.InetAddress.getByName("192.0.2.8");
+            try {
+                String full = prefix + "4\n4\ncoop\nlobby\nLAN game\n00000000-0000-0000-0000-000000000001";
+                accept.invoke(scanner, full.getBytes(java.nio.charset.StandardCharsets.UTF_8), address, System.nanoTime());
+                screen.tick();
+                var list = (com.pvzce.client.gui.components.AbstractSelectionList<?>)screen.widgets().stream()
+                        .filter(com.pvzce.client.gui.components.AbstractSelectionList.class::isInstance).toList().get(1);
+                assertEquals(1, list.entries().size());
+                screen.dispatchMouseClicked(list.x() + 10, list.y() + list.height() - list.entryHeight()/2D, 0);
+                assertTrue(h.sentPackets().isEmpty(), "A full LAN room must not start a connection");
+                String available = prefix + "1\n4\ncoop\nlobby\nLAN game\n00000000-0000-0000-0000-000000000001";
+                accept.invoke(scanner, available.getBytes(java.nio.charset.StandardCharsets.UTF_8), address, System.nanoTime());
+                screen.tick();
+                screen.dispatchMouseClicked(list.x() + 10, list.y() + list.height() - list.entryHeight()/2D, 0);
+                assertEquals("192.0.2.8:24862", client.roomAddress());
+                assertEquals(List.of(new RoomC2S("suspend", "", "")), h.sentPackets());
+            } finally { client.showTitle(); }
+            assertTrue(scanner.rooms().isEmpty(), "Removing the browser must release its scanner");
+        }
+    }
+
     private static LevelListS2C.LevelInfo info() {
         return LevelListS2C.LevelInfo.of(LEVEL, "房间关卡", "", "pvzce:plant_team",
                 List.of(new LevelListS2C.TeamInfo("pvzce:plant_team", "植物", "survive_waves")), "", "day",
