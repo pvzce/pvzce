@@ -531,7 +531,7 @@ public final class PvzceClient {
             smoke.addRenderNanos(System.nanoTime() - beforeRender);
             smoke.sampleFrame();
 
-            if (smoke.afterFrame(screen)) {
+            if (smoke.afterFrame(currentScreen())) {
                 break;
             }
             window.swapBuffers();
@@ -1270,7 +1270,7 @@ public final class PvzceClient {
         updateFps();
         if (!lightingPreview()) lightingPreview = false;
         if (sceneOnly()) screens.find(InGameScreen.class).renderLightingPreview();
-        else currentScreen().render();
+        else screens.render();
         if (!sceneOnly() && overlay != null) {
             overlay.initIfNeeded();
             overlay.render();

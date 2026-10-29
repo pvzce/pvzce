@@ -3,6 +3,7 @@ package com.pvzce.client.gui.screens;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.ConsoleOverlay;
 import com.pvzce.client.gui.Screen;
+import com.pvzce.client.gui.ScreenStack;
 import com.pvzce.testutil.ClientHarness;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,32 @@ class ScreenNavigationTest {
         ClientHarness harness = ClientHarness.create("pvzce-navigation");
         harnesses.add(harness);
         return harness.client();
+    }
+
+    @Test
+    void aScreenReplacedDuringTickIsInitializedBeforeItsFirstRender() throws Exception {
+        PvzceClient client = newClient();
+        ScreenStack stack = new ScreenStack(client);
+        List<String> events = new ArrayList<>();
+        Screen destination = new Screen(client) {
+            @Override protected void init() { events.add("init"); }
+            @Override public void tick() { events.add("tick"); }
+            @Override public void render() {
+                assertFalse(events.isEmpty(), "Rendering must not precede initialization");
+                events.add("render");
+            }
+        };
+        Screen source = new Screen(client) {
+            @Override public void tick() { stack.replace(destination); }
+            @Override public void render() { throw new AssertionError("The removed screen must not render"); }
+        };
+        stack.replace(source);
+        source.initIfNeeded();
+        source.tick();
+        stack.render();
+        assertEquals(List.of("init", "render"), events);
+        stack.render();
+        assertEquals(List.of("init", "render", "render"), events, "Initialization runs once; rendering does not tick the new screen");
     }
 
     /** Records whether it was told it is leaving. */

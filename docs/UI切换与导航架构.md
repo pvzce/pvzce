@@ -47,8 +47,11 @@ pollInput();                     // 事件只发给 overlay（若有）或 curre
 Screen screen = currentScreen();
 screen.initIfNeeded();           // 首次或 resize 后跑一次 init()
 screen.tick();
-render();                        // currentScreen().render()，然后 overlay.render()
+render();                        // screens.render()：初始化实际栈顶后绘制，然后 overlay.render()
 ```
+
+`ScreenStack.render` 在实际绘制前再次调用当前屏的 `initIfNeeded`：tick 内切屏时，新页面在同一帧先初始化再绘制，
+不额外 tick；没有切屏时初始化入口保持幂等。页面初始化由绘制入口统一保证，具体页面直接使用初始化好的布局。
 
 覆盖层与它下面的屏**互不干扰**：屏照常 `tick()`、照常 `render()`，覆盖层只是画在它上面并且
 独占输入。这在结构上成立，不再需要"如果是 ConsoleScreen 就特殊照顾"的分支。

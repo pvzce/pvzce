@@ -127,6 +127,13 @@ public final class ScreenStack {
     // Lifecycle
     // ------------------------------------------------------------------
 
+    /** The ticked screen may have navigated away; initialize the screen actually being drawn. */
+    public void render() {
+        Screen screen = current();
+        screen.initIfNeeded();
+        screen.render();
+    }
+
     /**
      * Rebuilds every screen on the stack for a new window size.
      *
