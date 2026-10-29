@@ -2263,6 +2263,8 @@ public final class PvzceClient {
     public boolean connectingMultiplayer() { return suspendingLocal || connecting != null; }
 
     public void hostMultiplayer(int port, boolean versus) {
+        levelList = List.of();
+        levelTabs = List.of();
         connection.send(new com.pvzce.common.network.packet.RoomC2S("open", Integer.toString(port), versus ? "versus" : "coop"));
     }
 
@@ -2339,6 +2341,11 @@ public final class PvzceClient {
         if (state.state().equals("suspended")) { if (suspendingLocal) connectMultiplayer(); return; }
         boolean selectedLevelChanged = multiplayer != null && !multiplayer.levelId().equals(state.levelId());
         multiplayer = state.state().equals("closed") ? null : state;
+        if (state.state().equals("closed")) {
+            levelList = List.of();
+            levelTabs = List.of();
+            clearLevelClientState();
+        }
         if (multiplayer == null || !state.levelId().equals(pendingMultiplayerPreparation)) {
             pendingMultiplayerPreparation = null;
         }
@@ -2356,9 +2363,13 @@ public final class PvzceClient {
     private String pendingMultiplayerPreparation;
 
     public void prepareMultiplayer() {
-        if (multiplayer == null) return;
+        if (multiplayer == null || multiplayer.host() || multiplayer.ready()) return;
         if (multiplayer.levelId().isEmpty()) {
             multiplayerMessage = "请等待房主选择关卡";
+            return;
+        }
+        if (multiplayer.versus()) {
+            connection.send(new com.pvzce.common.network.packet.RoomC2S("ready", "", ""));
             return;
         }
         if (pendingMultiplayerPreparation != null) return;
@@ -2380,9 +2391,7 @@ public final class PvzceClient {
             multiplayerMessage = "房主未提供所选关卡的数据，请房主重新选择关卡";
             return;
         }
-        if (!multiplayer.host() && multiplayer.message().contains("1v1")) {
-            startLevelWithSeedsAndBuffs(info.id(), true, List.of(), List.of());
-        } else openSeedSelection(info, true);
+        openSeedSelection(info, true);
     }
 
     public void onNetworkDisconnect(String reason) {

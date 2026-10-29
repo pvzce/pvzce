@@ -528,9 +528,9 @@ final public class SmokeDriver {
     boolean openNamedScreen(String smokeScreen) {
         if ("multiplayer".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(client));
-        } else if ("multiplayer_room".equals(smokeScreen)) {
+        } else if ("multiplayer_room".equals(smokeScreen) || "multiplayer_versus".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(client));
-            client.hostMultiplayer(0, false);
+            client.hostMultiplayer(0, "multiplayer_versus".equals(smokeScreen));
         } else if ("workshop".equals(smokeScreen)) {
             var menu=new com.pvzce.client.gui.screens.TitleScreen(client);
             client.setScreenReplacing(menu); menu.initIfNeeded();

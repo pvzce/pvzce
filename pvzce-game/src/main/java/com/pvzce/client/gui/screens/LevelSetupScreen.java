@@ -73,7 +73,8 @@ public final class LevelSetupScreen extends Screen {
         int actionHeight = GuiLayout.fitHeight(guiH, 67, 1, titleReserve, 0);
         int actionWidth = Math.min(210, (guiW - 24) / 2);
         int startX = centerX(actionWidth * 2 + 8);
-        addWidget(new Button(startX, 4, actionWidth, actionHeight, "开始游戏", this::startGame)
+        addWidget(new Button(startX, 4, actionWidth, actionHeight,
+                client.isMultiplayer() ? "确认阵营并准备" : "开始游戏", this::startGame)
                 .style(Button.Style.SEED_CHOOSER));
         addWidget(new Button(startX + actionWidth + 8, 4, actionWidth, actionHeight, "返回", this::requestClose)
                 .style(Button.Style.SEED_CHOOSER));

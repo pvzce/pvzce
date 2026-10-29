@@ -313,7 +313,7 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         if (level.humanVersus()) {
             level.send(MechanicSyncS2C.of(PvzceIds.MECHANIC_VERSUS, State.CODEC,
                     new State(data.sunGoal(), run.collected, opponentSide(level), 3,
-                            "", -1, -1, opponentSun(level), List.of(), "", false)));
+                            "", -1, -1, opponentSun(level), opponentHand(level), "", false)));
             return;
         }
         JevBrain brain = level.jevBrain();

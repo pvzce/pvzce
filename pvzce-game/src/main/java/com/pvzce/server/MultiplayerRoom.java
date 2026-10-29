@@ -50,6 +50,9 @@ final class MultiplayerRoom implements AutoCloseable {
     boolean open() { return listener != null; }
     boolean waiting() { return open() && !started; }
     boolean versus() { return versus; }
+    boolean acceptsLevel(com.pvzce.api.content.LevelDef def) {
+        return !open() || versus == com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).isPresent();
+    }
     Connection replyConnection() { return actor == null ? host : actor.connection; }
 
     boolean handleHost(PvzcePacket packet) {
@@ -57,14 +60,13 @@ final class MultiplayerRoom implements AutoCloseable {
             try {
                 switch (room.action()) {
                     case "open" -> open(Integer.parseInt(room.value()), room.token().equals("versus"));
-                    case "close" -> close();
+                    case "close" -> { close(); server.leaveLevel(); }
                     case "resume" -> server.suspendLocal(false);
                     case "suspend" -> {
                         close(); server.leaveLevel(); server.suspendLocal(true);
-                        host.send(new RoomS2C("suspended", "", "", "", true, List.of(), ""));
+                        host.send(new RoomS2C("suspended", "", "", "", true, List.of(), "", false, "", false, false));
                     }
                     case "start" -> start();
-                    case "ready" -> { hostReady = !hostReady; publish(); }
                     default -> host.send(new ServerMessageS2C("未知房间操作"));
                 }
             } catch (IOException | IllegalArgumentException e) {
@@ -175,6 +177,11 @@ final class MultiplayerRoom implements AutoCloseable {
                     publish();
                 }
                 case "leave" -> remove(seat);
+                case "ready" -> {
+                    if (versus && seat.admitted && hostReady)
+                        prepare(seat, new PlayLevelC2S(server.level().def().id().toString(), world, true, List.of()));
+                    else connection.send(new ServerMessageS2C("请等待房主选择对战关卡"));
+                }
                 default -> connection.send(new ServerMessageS2C("此操作仅房主可用"));
             }
             return;
@@ -185,6 +192,7 @@ final class MultiplayerRoom implements AutoCloseable {
         }
         if (packet instanceof ReselectCardsC2S reselect && started && seat.entered
                 && server.level().def().id().toString().equals(reselect.levelId())) {
+            if (versus) { connection.send(new ServerMessageS2C("对战使用地图规定的卡组")); return; }
             var cards = SeedSelection.sanitize(server.level().def(), reselect.selectedSeeds().stream()
                     .map(Identifier::tryParse).filter(Objects::nonNull).toList(), server.worlds().profileFor(world));
             withActor(seat, () -> server.level().asParticipant(seat.id, server.roomBridge(),
@@ -221,7 +229,7 @@ final class MultiplayerRoom implements AutoCloseable {
             seats.put(seat.id, seat);
             ContentSnapshot.send(content, connection::send);
         } catch (RuntimeException e) {
-            connection.send(new RoomS2C("error", "", "", "", false, List.of(), "无法加入：" + e.getMessage()));
+            connection.send(new RoomS2C("error", "", "", "", false, List.of(), "无法加入：" + e.getMessage(), versus, "", false, false));
         }
     }
 
@@ -238,8 +246,7 @@ final class MultiplayerRoom implements AutoCloseable {
     private void selectLevel(PlayLevelC2S play) {
         var def = com.pvzce.common.core.BuiltInRegistries.LEVELS.get(Identifier.tryParse(play.levelId()));
         if (def == null) return;
-        boolean versusLevel = com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).isPresent();
-        if (versus != versusLevel) { host.send(new ServerMessageS2C(versus ? "请选择对战关卡" : "合作房间请选择非对战关卡")); return; }
+        if (!acceptsLevel(def)) { host.send(new ServerMessageS2C(versus ? "请选择对战关卡" : "合作房间请选择非对战关卡")); return; }
         LevelServer previous = server.level();
         server.prepareRoomLevel(play, versus);
         if (server.level() == previous) return;
@@ -253,12 +260,11 @@ final class MultiplayerRoom implements AutoCloseable {
 
     private void prepare(Seat seat, PlayLevelC2S play) {
         LevelServer level = server.level();
-        if (level == null || !level.def().id().toString().equals(play.levelId())) {
+        if (!hostReady || level == null || !level.def().id().toString().equals(play.levelId())) {
             seat.connection.send(new ServerMessageS2C("请等待房主选择关卡")); return;
         }
         if (seat.entered) return;
-        Identifier hostTeam = level.humanTeamId();
-        seat.team = versus ? (PvzceIds.PLANT_TEAM.equals(hostTeam) ? PvzceIds.ZOMBIE_TEAM : PvzceIds.PLANT_TEAM) : hostTeam;
+        seat.team = guestTeam();
         seat.cards = SeedSelection.plan(level.def(), server.worlds().profileFor(world),
                 play.selectedSeeds().stream().map(Identifier::tryParse).filter(Objects::nonNull).toList(),
                 server.worlds().worldDir(world), false, level.cardSource().dealsItsOwnCards(), seat.team);
@@ -269,8 +275,7 @@ final class MultiplayerRoom implements AutoCloseable {
     }
 
     private void start() {
-        if (server.level() == null || !hostReady || seats.isEmpty()
-                || seats.values().stream().anyMatch(s -> !s.admitted || !s.ready || s.connection == null)) {
+        if (!canStart()) {
             host.send(new ServerMessageS2C("请选择关卡，并等待所有玩家选卡准备")); return;
         }
         started = true;
@@ -278,6 +283,16 @@ final class MultiplayerRoom implements AutoCloseable {
         server.level().sendFullState(host::send);
         for (Seat seat : seats.values()) snapshot(seat);
         server.level().beginPresentation(server.roomBridge());
+    }
+
+    private boolean canStart() {
+        return !started && server.level() != null && hostReady && !seats.isEmpty()
+                && seats.values().stream().allMatch(s -> s.admitted && s.ready && s.connection != null && s.connection.isConnected());
+    }
+
+    private Identifier guestTeam() {
+        Identifier hostTeam = server.level().humanTeamId();
+        return versus ? (PvzceIds.PLANT_TEAM.equals(hostTeam) ? PvzceIds.ZOMBIE_TEAM : PvzceIds.PLANT_TEAM) : hostTeam;
     }
 
     private void snapshot(Seat seat) {
@@ -320,7 +335,8 @@ final class MultiplayerRoom implements AutoCloseable {
                 return MechanicSyncS2C.of(sync.mechanic(), com.pvzce.common.level.mechanic.VersusMechanic.State.CODEC,
                         new com.pvzce.common.level.mechanic.VersusMechanic.State(state.sunGoal(), state.sunCollected(),
                                 opponent.equals(PvzceIds.PLANT_TEAM) ? "plant" : "zombie", 3, "", -1, -1,
-                                server.level().team(opponent).resourcesOf(PvzceIds.SUN), List.of(), "", false));
+                                server.level().team(opponent).resourcesOf(PvzceIds.SUN),
+                                server.level().versusData().cardsFor(opponent).stream().map(Identifier::toString).toList(), "", false));
             } finally { buf.delegate().release(); }
         }
         return packet;
@@ -334,13 +350,22 @@ final class MultiplayerRoom implements AutoCloseable {
 
     private void publish() {
         if (!open()) return;
-        String id = server.level() == null ? "" : server.level().def().id().toString();
-        List<String> roster = new ArrayList<>(); roster.add("房主 · " + (hostReady ? "已准备" : "选关中"));
-        for (Seat seat : seats.values()) roster.add(seat.name + " · " + (seat.connection == null ? "掉线，等待重连" : seat.ready ? "已准备" : "未准备"));
+        String id = !hostReady || server.level() == null ? "" : server.level().def().id().toString();
+        String hostTeam = id.isEmpty() ? "" : server.level().humanTeamId().toString();
+        String guestTeam = id.isEmpty() ? "" : guestTeam().toString();
+        List<String> roster = new ArrayList<>(); roster.add("房主 · " + teamLabel(hostTeam) + (hostReady ? "已准备" : "选关中"));
+        for (Seat seat : seats.values()) roster.add(seat.name + " · " + teamLabel(guestTeam)
+                + (seat.connection == null ? "掉线，等待重连" : seat.ready ? "已准备" : "未准备"));
         String state = started ? "playing" : "lobby";
-        host.send(new RoomS2C(state, id, "host", "", true, roster, message));
+        host.send(new RoomS2C(state, id, "host", "", true, roster, message, versus, hostTeam, hostReady, canStart()));
         for (Seat seat : seats.values()) if (seat.connection != null && seat.admitted)
-            seat.connection.send(new RoomS2C(state, id, seat.id, seat.token, false, roster, message));
+            seat.connection.send(new RoomS2C(state, id, seat.id, seat.token, false, roster, message, versus, guestTeam, seat.ready, canStart()));
+    }
+
+    private String teamLabel(String id) {
+        if (!versus || id.isEmpty()) return "";
+        return server.level().def().teams().stream().filter(t -> t.id().toString().equals(id))
+                .findFirst().orElseThrow().name() + " · ";
     }
 
     private void remove(Seat seat) {
@@ -360,6 +385,6 @@ final class MultiplayerRoom implements AutoCloseable {
         Connection connection; while ((connection = accepted.poll()) != null) { connection.close(); handshakes.release(); }
         started = false; content = null;
         if (server.level() != null) server.level().setHumanVersus(false);
-        if (socket != null) host.send(new RoomS2C("closed", "", "", "", true, List.of(), "房间已关闭"));
+        if (socket != null) host.send(new RoomS2C("closed", "", "", "", true, List.of(), "房间已关闭", versus, "", false, false));
     }
 }

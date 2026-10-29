@@ -15,6 +15,8 @@ public final class MultiplayerScreen extends Screen {
     private EditBox address;
     private String layoutKey = "";
     private Button join;
+    private Button start;
+    private Button prepare;
 
     public MultiplayerScreen(PvzceClient client) { super(client); }
 
@@ -27,6 +29,8 @@ public final class MultiplayerScreen extends Screen {
         String savedAddress = address == null ? client.roomAddress() : address.value();
         String savedName = nickname == null ? "玩家" : nickname.value();
         clearWidgets();
+        start = null;
+        prepare = null;
         layoutKey = key();
         var room = client.multiplayer();
         if (room == null) {
@@ -39,21 +43,25 @@ public final class MultiplayerScreen extends Screen {
         } else {
             nickname = null; address = null; join = null;
             if (room.host()) {
-                button(90, 420, 190, "选择关卡", client::showLevelList);
-                button(305, 420, 190, "全员准备后开始", () -> client.connection().send(new RoomC2S("start", "", "")));
+                button(90, 420, 190, room.versus() ? "选择对战地图" : "选择关卡",
+                        () -> client.openScreen(new LevelSelectScreen(client)));
+                start = button(305, 420, 190, room.versus() ? "开始对战" : "开始合作",
+                        () -> client.connection().send(new RoomC2S("start", "", "")));
                 button(520, 420, 190, "关闭房间", client::leaveMultiplayer);
             } else {
-                button(180, 420, 210, "选卡并准备", client::prepareMultiplayer);
+                prepare = button(180, 420, 210, room.levelId().isEmpty() ? "等待房主选关"
+                        : room.ready() ? "已准备" : room.versus() ? "准备对战" : "选卡并准备", client::prepareMultiplayer);
                 button(410, 420, 210, "离开房间", client::leaveMultiplayer);
             }
-            if (room.state().equals("playing") && client.level().levelId() != null)
+            if (room.state().equals("playing") && !client.level().levelId().isEmpty())
                 button(300, 500, 200, "返回战场", client::popScreen);
         }
+        updateActions();
     }
 
     private String key() {
         var room = client.multiplayer();
-        return room == null ? "closed" : room.state() + room.host() + room.levelId();
+        return room == null ? "closed" : room.state() + room.host() + room.levelId() + room.versus() + room.teamId() + room.ready();
     }
 
     private Button button(int x, int y, int width, String title, Runnable action) {
@@ -72,14 +80,22 @@ public final class MultiplayerScreen extends Screen {
     @Override public void tick() {
         if (canvas != null && !layoutKey.equals(key())) rebuild();
         if (join != null) join.setActive(!client.connectingMultiplayer());
+        updateActions();
+    }
+
+    private void updateActions() {
+        var room = client.multiplayer();
+        if (start != null) start.setActive(room.canStart());
+        if (prepare != null) prepare.setActive(!room.ready() && !room.levelId().isEmpty());
     }
 
     @Override public void render() {
         client.beginGuiView();
         MenuPageCanvas.renderPageBackground(client, this);
         canvas.panel(client, 60, 115, 680, 370);
-        client.fonts().button().drawCentered("多人游戏", canvas.x(400), canvas.y(70), canvas.scaled(2F), .25F, .13F, .05F, 1F);
         var room = client.multiplayer();
+        String title = room == null ? "多人游戏" : room.versus() ? "真人对战房间" : "合作房间";
+        client.fonts().button().drawCentered(title, canvas.x(400), canvas.y(70), canvas.scaled(2F), .25F, .13F, .05F, 1F);
         if (room == null) {
             text("昵称", 110, 184, 1.1F);
             text("服务器地址", 110, 244, 1.1F);
@@ -88,10 +104,18 @@ public final class MultiplayerScreen extends Screen {
         } else {
             String name = room.levelId().isBlank() ? "等待房主选择关卡" : client.levelList().stream()
                     .filter(l -> l.id().equals(room.levelId())).map(l -> l.name()).findFirst().orElse(room.levelId());
-            text(name, 110, 158, 1.2F);
-            int top = 210;
+            String mode = room.versus() ? "植物 vs 僵尸 · 真人 1v1" : "合作闯关 · 2～4 人";
+            if (room.versus() && !room.teamId().isEmpty()) {
+                String team = client.levelList().stream().filter(l -> l.id().equals(room.levelId()))
+                        .flatMap(l -> l.teams().stream()).filter(t -> t.id().equals(room.teamId()))
+                        .map(t -> t.name()).findFirst().orElse(room.teamId());
+                mode += " · 你是" + team;
+            }
+            text(mode, 110, 150, 1.1F);
+            text(name, 110, 188, 1.2F);
+            int top = 234;
             for (String player : room.players()) { text(player, 125, top, 1.1F); top += 42; }
-            text("进入菜单时战场继续运行；重开和切关由房主操作。", 110, 390, .9F);
+            text(room.versus() ? "植物收满目标阳光获胜；僵尸突破最左端获胜。" : "进入菜单时战场继续运行；重开和切关由房主操作。", 110, 390, .9F);
         }
         text(client.multiplayerMessage(), 80, 565, .9F);
         for (var widget : widgets) widget.render(client);
@@ -104,7 +128,7 @@ public final class MultiplayerScreen extends Screen {
     }
 
     @Override public void requestClose() {
-        if (client.isMultiplayer() && client.level().levelId() != null) client.popScreen();
+        if (client.isMultiplayer() && !client.level().levelId().isEmpty()) client.popScreen();
         else { client.leaveMultiplayer(); client.showTitle(); }
     }
 }

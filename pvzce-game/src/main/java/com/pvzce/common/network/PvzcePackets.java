@@ -158,7 +158,7 @@ public final class PvzcePackets {
     // 63: fusion level payload uses a drop multiplier and the ordinary shovel slot.
     // 64: fusion can request random filling from complete, affordable backpack recipes.
     // 66: save prompts report failed loads without entering a level or disconnecting.
-    public static final int PROTOCOL_VERSION = 67;
+    public static final int PROTOCOL_VERSION = 68;
 
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;

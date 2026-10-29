@@ -43,13 +43,50 @@ class MultiplayerScreenTest {
 
     private static void room(PvzceClient client, String level) {
         client.onMultiplayerRoom(new RoomS2C("lobby", level, "guest", "token", false,
-                List.of("房主 · 已准备", "客人 · 未准备"), "合作闯关"));
+                List.of("房主 · 已准备", "客人 · 未准备"), "合作闯关", false, "pvzce:plant_team", false, false));
     }
 
     private static void click(Screen screen, String label) {
         screen.initIfNeeded();
         var button = screen.widgets().stream().filter(w -> w instanceof Button b && b.label().equals(label)).findFirst().orElseThrow();
         screen.dispatchMouseClicked(button.x() + button.width()/2D, button.y() + button.height()/2D, 0);
+    }
+
+    @Test void versusPreparationUsesRoomFieldsAndDoesNotOpenACardChooser() throws Exception {
+        try (var h = ClientHarness.create("multiplayer-versus-menu")) {
+            var client = h.client(); window(client);
+            var roster = List.of("房主 · 植物方 · 已准备", "客人 · 僵尸方 · 未准备");
+            client.onMultiplayerRoom(new RoomS2C("lobby", "pvzce:yard/versus/duel_1", "guest", "token", false,
+                    roster, "没有模式关键词的普通提示", true, "pvzce:zombie_team", false, false));
+            click(client.currentScreen(), "准备对战");
+            assertInstanceOf(MultiplayerScreen.class, client.currentScreen());
+            assertEquals(List.of(new RoomC2S("ready", "", "")), h.sentPackets());
+            client.onMultiplayerRoom(new RoomS2C("lobby", "pvzce:yard/versus/duel_1", "guest", "token", false,
+                    roster, "", true, "pvzce:zombie_team", true, true));
+            click(client.currentScreen(), "已准备");
+            var button = client.currentScreen().widgets().stream().filter(w -> w instanceof Button b && b.label().equals("已准备")).findFirst().orElseThrow();
+            assertFalse(button.isActive());
+            assertEquals(1, h.sentPackets().size(), "Repeated clicks must not prepare twice");
+        }
+    }
+
+    @Test void versusHostCanStartOnlyWithTheAuthoritativeReadyVerdictAndCanReturnFromMapSelection() throws Exception {
+        try (var h = ClientHarness.create("multiplayer-versus-host")) {
+            var client = h.client(); window(client);
+            var roster = List.of("房主 · 植物方 · 已准备", "客人 · 僵尸方 · 未准备");
+            client.onMultiplayerRoom(new RoomS2C("lobby", "pvzce:yard/versus/duel_1", "host", "", true,
+                    roster, "", true, "pvzce:plant_team", true, false));
+            click(client.currentScreen(), "开始对战");
+            assertTrue(h.sentPackets().isEmpty());
+            client.onMultiplayerRoom(new RoomS2C("lobby", "pvzce:yard/versus/duel_1", "host", "", true,
+                    roster, "", true, "pvzce:plant_team", true, true));
+            click(client.currentScreen(), "开始对战");
+            assertEquals(List.of(new RoomC2S("start", "", "")), h.sentPackets());
+            click(client.currentScreen(), "选择对战地图");
+            assertInstanceOf(LevelSelectScreen.class, client.currentScreen());
+            client.currentScreen().requestClose();
+            assertInstanceOf(MultiplayerScreen.class, client.currentScreen());
+        }
     }
 
     private static void await(ServerHarness host, PvzceClient client, BooleanSupplier condition) throws Exception {
@@ -156,7 +193,7 @@ class MultiplayerScreenTest {
             client.setLevelList(List.of(info()));
             assertInstanceOf(MultiplayerScreen.class, client.currentScreen());
             click(client.currentScreen(), "选卡并准备");
-            client.onMultiplayerRoom(new RoomS2C("closed", "", "", "", false, List.of(), ""));
+            client.onMultiplayerRoom(new RoomS2C("closed", "", "", "", false, List.of(), "", false, "", false, false));
             client.setLevelList(List.of(info()));
             assertFalse(client.currentScreen() instanceof ChooseSeedsScreen);
         }
@@ -166,7 +203,9 @@ class MultiplayerScreenTest {
         try (var h = ClientHarness.create("multiplayer-menu-missing")) {
             var client = h.client(); window(client);
             room(client, "");
-            click(client.currentScreen(), "选卡并准备");
+            click(client.currentScreen(), "等待房主选关");
+            assertTrue(h.sentPackets().stream().noneMatch(RequestLevelListC2S.class::isInstance));
+            client.prepareMultiplayer();
             assertEquals("请等待房主选择关卡", client.multiplayerMessage());
             room(client, LEVEL);
             click(client.currentScreen(), "选卡并准备");

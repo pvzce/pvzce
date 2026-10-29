@@ -519,6 +519,7 @@ public final class LevelSelectScreen extends Screen {
             int x = categoryRowX;
             for (LevelPage.Tab tab : categories) {
                 String label = LevelPage.label(tab.categoryId(), "level_category", UNCATEGORIZED_KEY, UNCATEGORIZED_TEXT);
+                if (client.isMultiplayer() && client.multiplayer().versus() && tab.categoryId().equals("pvzce:versus")) label = "真人对战";
                 Button button = new Button(x, categoryRowY, buttonWidth, categoryRowHeight, label,
                         () -> switchToCategory(tab));
                 button.style(Button.Style.SEED_CHOOSER);
@@ -798,6 +799,7 @@ public final class LevelSelectScreen extends Screen {
      */
     @Override
     public Navigation backTarget() {
+        if (client.isMultiplayer() && client.screenDepth() <= 1) return Navigation.replaceRoot(MultiplayerScreen::new);
         return client.screenDepth() > 1
                 ? Navigation.POP
                 : Navigation.replaceRoot(TitleScreen::new);

@@ -460,7 +460,7 @@ public final class PvzceServer implements Runnable {
         // marked that way is one the pages leave out (see `LevelPage.rowsFor`). The rows are still
         // all sent - the collection's own screen draws them - so this is about which list a level
         // appears on, not about whether the client knows it exists.
-        List<LevelCollections.Collection> collections = LevelCollections.build();
+        List<LevelCollections.Collection> collections = room.open() && room.versus() ? List.of() : LevelCollections.build();
         Map<Identifier, Identifier> containedIn = new java.util.HashMap<>();
         for (LevelCollections.Collection collection : collections) {
             for (Identifier member : collection.members()) {
@@ -482,6 +482,7 @@ public final class PvzceServer implements Runnable {
                         com.pvzce.api.util.LevelGrouping.idOrder()))
                 .forEach(id -> {
                     LevelDef def = BuiltInRegistries.LEVELS.get(id);
+                    if (!room.acceptsLevel(def)) return;
                     LevelUnlocks.State unlock = LevelUnlocks.evaluate(id, def.unlock(), unlockContext);
                     if (unlock.isHidden()) {
                         // A hidden level is not listed at all until it opens, so the client
@@ -505,8 +506,12 @@ public final class PvzceServer implements Runnable {
                     String status = runningSave ? LevelListS2C.LevelInfo.IN_PROGRESS
                             : (beaten ? LevelListS2C.LevelInfo.COMPLETED : "");
                     Identifier collection = containedIn.get(id);
+                    boolean humanVersus = room.open() && room.versus();
+                    String name = humanVersus ? def.displayName().replace("人机对战", "真人对战") : def.displayName();
+                    String description = humanVersus ? "植物收集到 " + com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).orElseThrow().sunGoal()
+                            + " 阳光获胜；僵尸突破最左端获胜。双方使用地图卡组，房主选择阵营，客人加入另一方。" : def.description();
                     LevelListS2C.LevelInfo row = new LevelListS2C.LevelInfo(id.toString(),
-                            def.displayName(), def.description(), def.winTeam().toString(), teams,
+                            name, description, def.winTeam().toString(), teams,
                             status, LevelIcons.of(def), group.theme().toString(),
                             group.category().toString(), runningSave, beaten,
                             LevelServer.payloadFor(def, seeds),
@@ -515,6 +520,8 @@ public final class PvzceServer implements Runnable {
                     rows.add(Map.entry(id.toString(), row));
                 });
         for (LevelCollections.Collection collection : collections) {
+            if (room.open() && rows.stream().noneMatch(row -> collection.members().stream()
+                    .anyMatch(member -> member.toString().equals(row.getValue().id())))) continue;
             // The name is not the server's to give - it is a language key the client resolves off
             // this id (see `LevelPage.collectionLabel`) - so the row carries the id and the client
             // reads it in whatever language it is in. What the server does send is the page, the
@@ -534,7 +541,10 @@ public final class PvzceServer implements Runnable {
         // Pages travel with the list they describe: a screen that received the levels but
         // not the tabs would have to invent them, and the two would be free to disagree.
         replyConnection().send(profilePacket(profile));
-        replyConnection().send(new LevelTabsS2C(LevelTabs.build()));
+        var tabs = LevelTabs.build();
+        if (room.open()) tabs = tabs.stream().filter(tab -> levels.stream()
+                .anyMatch(info -> info.theme().equals(tab.theme()) && info.category().equals(tab.category()))).toList();
+        replyConnection().send(new LevelTabsS2C(tabs));
         replyConnection().send(new LevelListS2C(levels));
     }
 

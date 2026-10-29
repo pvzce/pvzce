@@ -6,6 +6,8 @@ import com.pvzce.common.network.*;
 import com.pvzce.common.network.packet.*;
 import com.pvzce.testutil.ServerHarness;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.*;
@@ -186,35 +188,145 @@ class MultiplayerRoomTest {
         }
     }
 
-    @Test void humanVersusUsesUnhandicappedEconomyAndProjectsOppositeOutcomes(@TempDir Path dir) throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"pvzce:plant_team", "pvzce:zombie_team"})
+    void humanVersusUsesUnhandicappedEconomyAndProjectsOppositeOutcomes(String hostTeam, @TempDir Path dir) throws Exception {
         try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
             host.send(new RoomC2S("open", "0", "versus")); host.awaitPacket(RoomS2C.class, 15_000);
             String assets = ContentSnapshot.assets(host.server().resourceManager());
             try (var guest = new Peer(host.server().multiplayerPort(), assets, "")) {
                 var peers = List.of(guest);
                 await(host, peers, () -> guest.room != null);
+                assertTrue(guest.room.versus());
+                assertFalse(guest.room.canStart());
+                try (var extra = new Peer(host.server().multiplayerPort(), assets, "")) {
+                    await(host, List.of(extra), () -> extra.room != null && extra.room.state().equals("error"));
+                    assertTrue(extra.room.message().contains("已满"));
+                }
+                var maps = guest.packets.stream().filter(LevelListS2C.class::isInstance).map(LevelListS2C.class::cast)
+                        .reduce((a, b) -> b).orElseThrow().levels();
+                assertFalse(maps.isEmpty());
+                assertTrue(maps.stream().allMatch(l -> !l.isCollection() && l.name().startsWith("真人对战")),
+                        maps.stream().map(l -> l.id() + "=" + l.name()).toList().toString());
+                assertTrue(guest.packets.stream().filter(LevelTabsS2C.class::isInstance).map(LevelTabsS2C.class::cast)
+                        .reduce((a, b) -> b).orElseThrow().tabs().stream().allMatch(t -> t.category().equals("pvzce:versus")));
                 String duel = "pvzce:yard/versus/duel_1";
-                host.send(new PlayLevelC2S(duel, "world", true, List.of(), List.of(), "pvzce:zombie_team"));
+                host.send(new PlayLevelC2S(duel, "world", true, List.of(), List.of(), hostTeam));
                 await(host, peers, () -> guest.room.levelId().equals(duel));
-                guest.connection.send(new PlayLevelC2S(duel, "ignored", true, List.of()));
-                await(host, peers, () -> guest.room.players().stream().anyMatch(s -> s.contains("guest") && s.contains("已准备")));
+                String guestTeam = hostTeam.equals("pvzce:plant_team") ? "pvzce:zombie_team" : "pvzce:plant_team";
+                assertEquals(guestTeam, guest.room.teamId());
+                assertTrue(guest.room.players().stream().allMatch(p -> p.contains("植物方") || p.contains("僵尸方")));
+                host.clear(); host.send(new RoomC2S("start", "", ""));
+                await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof ServerMessageS2C s && s.message().contains("等待")));
+                assertNull(guest.init);
+                guest.connection.send(new RoomC2S("ready", "", ""));
+                await(host, peers, () -> guest.room.ready());
+                assertTrue(guest.room.canStart());
                 host.send(new RoomC2S("start", "", ""));
                 await(host, peers, () -> guest.init != null);
                 host.send(new CommandC2S("/tick freeze"));
                 await(host, peers, () -> host.server().tickRateManager().isFrozen());
-                assertEquals("pvzce:plant_team", guest.init.controlledTeamId());
-                assertEquals(PvzceIds.ZOMBIE_TEAM, host.server().level().humanTeamId());
+                assertEquals(guestTeam, guest.init.controlledTeamId());
+                assertEquals(hostTeam, host.server().level().humanTeamId().toString());
                 assertTrue(host.server().level().humanVersus());
                 int opening = host.server().level().versusData().plantInitialSun();
                 assertEquals(opening, host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
                 assertTrue(host.server().level().entities().stream().noneMatch(e -> e instanceof com.pvzce.server.entity.PlantEntity));
+                var opponent = versusState(guest.packets);
+                assertEquals(3, opponent.opponentStatus());
+                assertEquals(host.server().level().versusData().cardsFor(com.pvzce.api.util.Identifier.tryParse(hostTeam))
+                        .stream().map(Object::toString).toList(), opponent.opponentHand());
+                assertEquals(host.server().level().team(com.pvzce.api.util.Identifier.tryParse(hostTeam)).resourcesOf(PvzceIds.SUN), opponent.opponentSun());
+                var hostHud = versusState(host.packets());
+                assertEquals(host.server().level().versusData().cardsFor(com.pvzce.api.util.Identifier.tryParse(guestTeam))
+                        .stream().map(Object::toString).toList(), hostHud.opponentHand());
+                guest.connection.send(new ReselectCardsC2S(duel, "ignored", List.of("pvzce:cherry_bomb")));
+                await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof ServerMessageS2C m && m.message().contains("地图规定")));
+                host.send(new CommandC2S("/resource give pvzce:plant_team pvzce:sun 1000"));
+                host.send(new CommandC2S("/resource give pvzce:zombie_team pvzce:sun 1000"));
+                int zombieOpening = host.server().level().versusData().zombieInitialSun();
+                await(host, peers, () -> host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN) == opening + 1000
+                        && host.server().level().team(PvzceIds.ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN) == zombieOpening + 1000);
+                boolean hostPlants = hostTeam.equals("pvzce:plant_team");
+                Connection planter = hostPlants ? host.pair().client() : guest.connection;
+                Connection zombies = hostPlants ? guest.connection : host.pair().client();
+                LevelInitS2C plantInit = hostPlants ? host.packet(LevelInitS2C.class) : guest.init;
+                LevelInitS2C zombieInit = hostPlants ? guest.init : host.packet(LevelInitS2C.class);
+                var pea = plantInit.slots().stream().filter(s -> s.defId().equals("pvzce:pea_shooter")).findFirst().orElseThrow();
+                var zombie = zombieInit.slots().stream().filter(s -> s.defId().equals("pvzce:basic_zombie")).findFirst().orElseThrow();
+                // A forged opposite-side action must not turn that side's slot into an enemy card.
+                zombies.send(new PlacePlantC2S(zombie.index(), 4, 0));
+                planter.send(new PlaceZombieC2S(pea.index(), 8, 0));
+                planter.send(new PlacePlantC2S(pea.index(), 0, 0));
+                zombies.send(new PlaceZombieC2S(zombie.index(), 8, 4));
+                guest.connection.send(new ChatC2S("placement-probe"));
+                await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof ServerMessageS2C m && m.message().contains("placement-probe")));
+                host.send(new CommandC2S("/tick step 1"));
+                await(host, peers, () -> host.server().level().plantAt(0, 0) != null
+                        && host.server().level().entities().stream().anyMatch(e -> e instanceof com.pvzce.server.entity.ZombieEntity));
+                assertNull(host.server().level().plantAt(4, 0));
+                assertEquals(opening + 1000 - pea.costSun(), host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
+                assertEquals(zombieOpening + 1000 - zombie.costSun(), host.server().level().team(PvzceIds.ZOMBIE_TEAM).resourcesOf(PvzceIds.SUN));
+                host.send(new CommandC2S("/resource spawn pvzce:sun 4 2"));
+                host.send(new CommandC2S("/tick step 1"));
+                await(host, peers, () -> host.server().level().entities().stream().anyMatch(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity));
+                var drop = host.server().level().entities().stream().filter(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity)
+                        .map(com.pvzce.server.entity.ResourceDropEntity.class::cast).findFirst().orElseThrow();
+                zombies.send(new CollectResourceC2S(drop.id()));
+                zombies.send(new ChatC2S("collection-probe"));
+                await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof ServerMessageS2C m && m.message().contains("collection-probe")));
+                assertFalse(drop.isRemoved(), "The zombie side must not collect the plant side's sun");
+                planter.send(new CollectResourceC2S(drop.id()));
+                await(host, peers, drop::isRemoved);
+                assertEquals(opening + 1000 - pea.costSun() + drop.amount(), host.server().level().team(PvzceIds.PLANT_TEAM).resourcesOf(PvzceIds.SUN));
                 host.send(new CommandC2S("/spawn zombie pvzce:basic_zombie 0 2"));
                 host.send(new CommandC2S("/tick step 400"));
                 await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof GameStateS2C));
                 var result = guest.packets.stream().filter(p -> p instanceof GameStateS2C).map(p -> (GameStateS2C)p).reduce((a,b) -> b).orElseThrow();
-                assertEquals(GameStateS2C.LOST, result.state());
+                assertEquals(guestTeam.equals("pvzce:zombie_team") ? GameStateS2C.WON : GameStateS2C.LOST, result.state());
                 assertEquals("pvzce:zombie_team", result.winTeamId());
-                assertTrue(host.packets().stream().anyMatch(p -> p instanceof GameStateS2C g && g.state().equals(GameStateS2C.WON)));
+                assertTrue(host.packets().stream().anyMatch(p -> p instanceof GameStateS2C g
+                        && g.state().equals(hostTeam.equals("pvzce:zombie_team") ? GameStateS2C.WON : GameStateS2C.LOST)));
+            }
+        }
+    }
+
+    private static com.pvzce.common.level.mechanic.VersusMechanic.State versusState(List<PvzcePacket> packets) {
+        var packet = packets.stream().filter(p -> p instanceof MechanicSyncS2C s && s.mechanic().equals(PvzceIds.MECHANIC_VERSUS))
+                .map(MechanicSyncS2C.class::cast).reduce((a, b) -> b).orElseThrow();
+        var buf = packet.payloadBuffer();
+        try { return com.pvzce.common.level.mechanic.VersusMechanic.State.CODEC.decode(buf); }
+        finally { buf.delegate().release(); }
+    }
+
+    @Test void plantSunGoalAwardsTheHumanPlantSideAndRejectsTheZombieSide(@TempDir Path dir) throws Exception {
+        Path path = dir.resolve("datapacks/room-test/data/pvzce/levels/yard/versus/duel_1.json");
+        java.nio.file.Files.createDirectories(path.getParent());
+        var json = com.google.gson.JsonParser.parseString(new String(getClass().getResourceAsStream(
+                "/data/pvzce/levels/yard/versus/duel_1.json").readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+        json.getAsJsonArray("mechanics").get(0).getAsJsonObject().addProperty("sun_goal", 25);
+        java.nio.file.Files.writeString(path, json.toString());
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            host.send(new RoomC2S("open", "0", "versus")); host.awaitPacket(RoomS2C.class, 15_000);
+            try (var guest = new Peer(host.server().multiplayerPort(), ContentSnapshot.assets(host.server().resourceManager()), "")) {
+                var peers = List.of(guest);
+                await(host, peers, () -> guest.room != null);
+                host.send(new PlayLevelC2S("pvzce:yard/versus/duel_1", "world", true, List.of(), List.of(), "pvzce:plant_team"));
+                await(host, peers, () -> !guest.room.levelId().isEmpty());
+                guest.connection.send(new RoomC2S("ready", "", ""));
+                await(host, peers, () -> guest.room.ready());
+                host.send(new RoomC2S("start", "", ""));
+                await(host, peers, () -> guest.init != null);
+                host.send(new CommandC2S("/tick freeze"));
+                host.send(new CommandC2S("/resource spawn pvzce:sun 4 2"));
+                host.send(new CommandC2S("/tick step 1"));
+                await(host, peers, () -> host.server().level().entities().stream().anyMatch(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity));
+                var drop = host.server().level().entities().stream().filter(e -> e instanceof com.pvzce.server.entity.ResourceDropEntity).findFirst().orElseThrow();
+                host.send(new CollectResourceC2S(drop.id()));
+                host.send(new CommandC2S("/tick step 1"));
+                await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof GameStateS2C g && g.state().equals(GameStateS2C.LOST)));
+                assertTrue(host.packets().stream().anyMatch(p -> p instanceof GameStateS2C g
+                        && g.state().equals(GameStateS2C.WON) && g.winTeamId().equals("pvzce:plant_team")));
             }
         }
     }
