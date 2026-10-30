@@ -32,6 +32,36 @@ class MultiplayerScreenTest {
         }
     }
 
+    @Test void hostCanRequireAllPacksAndGuestCanOnlyDeselectOptionalPacks(@TempDir Path dir) throws Exception {
+        try (var h = ClientHarness.create("server-packs-ui")) {
+            var client = h.client(); window(client);
+            client.openScreen(new MultiplayerScreen(client));
+            click(client.currentScreen(), "[ ] 必须接受所有数据包");
+            click(client.currentScreen(), "创建合作房间");
+            assertEquals(new RoomC2S("open", "24860", "coop_all"), h.sentPackets().getLast());
+            var required = new PackManifestS2C.Pack("gameplay", ContentSnapshot.digest("required"), 100, true);
+            var optional = new PackManifestS2C.Pack("textures", ContentSnapshot.digest("optional"), 100, false);
+            for (boolean forceAll : List.of(false, true)) {
+                try (var packs = new SessionPacks.Client(dir, null)) {
+                    var field = PvzceClient.class.getDeclaredField("remotePacks"); field.setAccessible(true); field.set(client, packs);
+                    var manifest = new PackManifestS2C(List.of(required, optional), forceAll);
+                    var screen = new ServerPacksScreen(client, manifest); client.openScreen(screen); screen.initIfNeeded();
+                    var list = (com.pvzce.client.gui.components.AbstractSelectionList<?>)screen.widgets().getFirst();
+                    screen.dispatchMouseClicked(list.x() + 10, list.y() + list.height() - list.entryHeight() / 2D, 0);
+                    screen.dispatchMouseClicked(list.x() + 10, list.y() + list.height() - list.entryHeight() * 1.5D, 0);
+                    screen.onResize(); screen.initIfNeeded();
+                    click(screen, "接受并加入");
+                    RoomC2S choice = h.sentPackets().stream().filter(p -> p instanceof RoomC2S r && r.action().equals("packs_select"))
+                            .map(RoomC2S.class::cast).reduce((a,b) -> b).orElseThrow();
+                    var hashes = com.google.gson.JsonParser.parseString(choice.value()).getAsJsonArray();
+                    assertTrue(hashes.contains(new com.google.gson.JsonPrimitive(required.hash())));
+                    assertEquals(forceAll, hashes.contains(new com.google.gson.JsonPrimitive(optional.hash())));
+                }
+            }
+            client.showTitle();
+        }
+    }
+
     @Test void bookmarksCanBeAddedEditedCancelledAndJoinedThroughWidgets() throws Exception {
         try (var h = ClientHarness.create("server-browser-ui")) {
             var client = h.client(); window(client);
@@ -107,7 +137,7 @@ class MultiplayerScreenTest {
             field.set(screen, scanner);
             var accept = LanDiscovery.Browser.class.getDeclaredMethod("accept", byte[].class, java.net.InetAddress.class, long.class);
             accept.setAccessible(true);
-            String prefix = "PVZCE_LAN\n" + PvzcePackets.PROTOCOL_VERSION + "\n24862\n";
+            String prefix = "PVZCE_LAN\n" + com.pvzce.common.network.PacketRegistry.fingerprint() + "\n24862\n";
             var address = java.net.InetAddress.getByName("192.0.2.8");
             try {
                 String full = prefix + "4\n4\ncoop\nlobby\nLAN game\n00000000-0000-0000-0000-000000000001";
@@ -213,13 +243,15 @@ class MultiplayerScreenTest {
                 // installing another global registry while its authoritative server is running.
                 var listener = new PvzceClientPacketListener(client, client.level());
                 connection.setListener(packet -> {
-                    if (packet instanceof ContentS2C content) {
+                    if (packet instanceof com.pvzce.common.network.packet.PackManifestS2C manifest) {
+                        var selected = new com.google.gson.JsonArray(); manifest.packs().forEach(p -> selected.add(p.hash()));
+                        connection.send(new RoomC2S("packs_select", selected.toString(), ""));
+                        connection.send(new RoomC2S("packs_ready", "", ""));
+                    } else if (packet instanceof ContentS2C content) {
                         if (content.last()) connection.send(new RoomC2S("content_ready", content.data(), ""));
                     } else listener.handle(packet);
                 });
                 var hello = new com.google.gson.JsonObject(); hello.addProperty("name", "UI客人");
-                hello.addProperty("mods", ContentSnapshot.mods());
-                hello.addProperty("assets", ContentSnapshot.assets(host.server().resourceManager()));
                 connection.send(new RoomC2S("hello", hello.toString(), ""));
                 await(host, client, () -> client.multiplayer() != null);
                 host.send(new PlayLevelC2S(id, "world", true, List.of("pvzce:sun", "pvzce:pea_shooter")));

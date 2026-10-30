@@ -6818,7 +6818,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // mechanic the *player* brought, and the overlay the client draws from it.
         LevelPayload payload = payloadFor(def, seedContext, mechanics);
         bridge.send(new LevelInitS2C(def.id().toString(), slotInfos(), waves.roundWaveTypes(), payload,
-                humanTeamId.toString(), teamName(humanTeamId), PvzcePackets.PROTOCOL_VERSION));
+                humanTeamId.toString(), teamName(humanTeamId)));
 
         bridge.send(new SceneSyncS2C(scene.snapshot()));
         for (TypedMechanic typed : mechanics) {

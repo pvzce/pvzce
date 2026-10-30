@@ -12,13 +12,13 @@ public final class LanDiscovery {
     private LanDiscovery() { }
 
     public record Room(String name, String address, int players, int capacity, boolean versus,
-                       boolean playing, int protocol, String instanceId) {
-        public boolean joinable() { return protocol == PvzcePackets.PROTOCOL_VERSION && players < capacity && !(versus && playing); }
+                       boolean playing, String protocol, String instanceId) {
+        public boolean joinable() { return protocol.equals(PacketRegistry.fingerprint()) && players < capacity && !(versus && playing); }
     }
     public record Announcement(String name, int port, int players, int capacity, boolean versus, boolean playing) { }
 
     static byte[] encode(String instanceId, Announcement room) {
-        return ("PVZCE_LAN\n" + PvzcePackets.PROTOCOL_VERSION + "\n" + room.port() + "\n"
+        return ("PVZCE_LAN\n" + PacketRegistry.fingerprint() + "\n" + room.port() + "\n"
                 + room.players() + "\n" + room.capacity() + "\n" + (room.versus() ? "versus" : "coop") + "\n"
                 + (room.playing() ? "playing" : "lobby") + "\n" + room.name().replaceAll("[\\p{Cntrl}]", " ") + "\n" + instanceId).getBytes(StandardCharsets.UTF_8);
     }
@@ -36,7 +36,7 @@ public final class LanDiscovery {
             boolean versus = parts[5].equals("versus");
             if (players < 1 || players > capacity || capacity != (versus ? 2 : PvzceConstants.MULTIPLAYER_MAX_PLAYERS)) return null;
             return new Room(parts[7], new ServerAddress(source.getHostAddress(), port).toString(), players, capacity,
-                    versus, parts[6].equals("playing"), Integer.parseInt(parts[1]), instanceId);
+                    versus, parts[6].equals("playing"), parts[1], instanceId);
         } catch (IllegalArgumentException e) { return null; }
     }
 

@@ -35,6 +35,12 @@ public final class TcpPacketTransport implements PacketTransport, AutoCloseable 
         this.socket = socket;
         socket.setTcpNoDelay(true);
         socket.setSoTimeout(PvzceConstants.NETWORK_TIMEOUT_MILLIS);
+        // Publish our registry before a rejecting reader can close the socket. Both peers then
+        // receive the mismatch reason even when the host already has the client's preamble.
+        DataOutputStream preamble = new DataOutputStream(socket.getOutputStream());
+        preamble.writeInt(MAGIC);
+        preamble.writeUTF(PacketRegistry.fingerprint());
+        preamble.flush();
         start("PvzceNetworkRead", this::readLoop);
         start("PvzceNetworkWrite", this::writeLoop);
     }
@@ -51,9 +57,9 @@ public final class TcpPacketTransport implements PacketTransport, AutoCloseable 
     private void readLoop() throws IOException {
         DataInputStream input = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
         if (input.readInt() != MAGIC) throw new IOException("不是 PVZCE 联机服务器");
-        int version = input.readInt();
-        if (version != PvzcePackets.PROTOCOL_VERSION)
-            throw new IOException("协议版本不一致：对端 " + version + "，本机 " + PvzcePackets.PROTOCOL_VERSION);
+        String fingerprint = input.readUTF();
+        if (!fingerprint.equals(PacketRegistry.fingerprint()))
+            throw new IOException("注册的网络包不一致，请检查双方的游戏与模组");
         while (!closed) {
             int length = input.readInt();
             if (length == 0) continue; // transport heartbeat
@@ -67,9 +73,6 @@ public final class TcpPacketTransport implements PacketTransport, AutoCloseable 
 
     private void writeLoop() throws Exception {
         DataOutputStream output = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
-        output.writeInt(MAGIC);
-        output.writeInt(PvzcePackets.PROTOCOL_VERSION);
-        output.flush();
         while (!closed) {
             byte[] frame = outgoing.poll(PvzceConstants.NETWORK_HEARTBEAT_MILLIS, TimeUnit.MILLISECONDS);
             output.writeInt(frame == null ? 0 : frame.length);

@@ -23,16 +23,20 @@ class MultiplayerRoomTest {
         final List<PvzcePacket> packets = new ArrayList<>();
         RoomS2C room;
         LevelInitS2C init;
-        Peer(int port, String assets, String resume) throws Exception {
+        Peer(int port, String resume) throws Exception {
             connection = TcpPacketTransport.connect("127.0.0.1", port);
             connection.setListener(packet -> {
                 packets.add(packet);
+                if (packet instanceof PackManifestS2C manifest) {
+                    var selected = new com.google.gson.JsonArray(); manifest.packs().forEach(p -> selected.add(p.hash()));
+                    connection.send(new RoomC2S("packs_select", selected.toString(), ""));
+                    connection.send(new RoomC2S("packs_ready", "", ""));
+                }
                 if (packet instanceof ContentS2C c && c.last()) connection.send(new RoomC2S("content_ready", c.data(), ""));
                 if (packet instanceof RoomS2C r) room = r;
                 if (packet instanceof LevelInitS2C i) init = i;
             });
             JsonObject hello = new JsonObject(); hello.addProperty("name", "guest");
-            hello.addProperty("mods", ContentSnapshot.mods()); hello.addProperty("assets", assets);
             connection.send(new RoomC2S("hello", hello.toString(), resume));
         }
         int slot(String id) { return init.slots().stream().filter(s -> s.defId().equals(id)).findFirst().orElseThrow().index(); }
@@ -55,7 +59,7 @@ class MultiplayerRoomTest {
             host.createWorld("fresh", false);
             host.send(new RoomC2S("open", "0", "coop"));
             host.awaitPacket(RoomS2C.class, 15_000);
-            try (var guest = new Peer(host.server().multiplayerPort(), ContentSnapshot.assets(host.server().resourceManager()), "")) {
+            try (var guest = new Peer(host.server().multiplayerPort(), "")) {
                 var peers = List.of(guest);
                 await(host, peers, () -> guest.room != null);
                 assertFalse(guest.packets.stream().filter(ProfileS2C.class::isInstance)
@@ -79,8 +83,7 @@ class MultiplayerRoomTest {
             host.send(new RoomC2S("open", "0", "coop"));
             host.awaitPacket(RoomS2C.class, 15_000);
             int port = host.server().multiplayerPort();
-            String assets = ContentSnapshot.assets(host.server().resourceManager());
-            try (var guest = new Peer(port, assets, "")) {
+            try (var guest = new Peer(port, "")) {
                 var peers = List.of(guest);
                 await(host, peers, () -> guest.room != null);
                 host.send(new PlayLevelC2S(LEVEL, "world", true, CARDS));
@@ -116,7 +119,7 @@ class MultiplayerRoomTest {
                 guest.close();
                 await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof RoomS2C r && r.players().stream().anyMatch(s -> s.contains("掉线"))));
                 assertTrue(host.server().thread().isAlive());
-                try (var resumed = new Peer(port, assets, token)) {
+                try (var resumed = new Peer(port, token)) {
                     await(host, List.of(resumed), () -> resumed.init != null);
                     assertEquals(guest.room.playerId(), resumed.room.playerId());
                     assertTrue(resumed.init.slots().stream().anyMatch(s -> s.defId().equals("pvzce:pea_shooter") && s.cooldownLeft() > 0));
@@ -141,9 +144,9 @@ class MultiplayerRoomTest {
             int rawId = registry.getId(original);
             var tags = Set.copyOf(registry.tagKeys());
             List<PvzcePacket> chunks = new ArrayList<>();
-            ContentSnapshot.send(ContentSnapshot.capture("assets"), chunks::add);
+            ContentSnapshot.send(ContentSnapshot.capture(), chunks::add);
             try (var remote = new ContentSnapshot()) {
-                for (var chunk : chunks) remote.accept((ContentS2C)chunk, "assets");
+                for (var chunk : chunks) remote.accept((ContentS2C)chunk);
                 assertNotSame(original, registry.get(PvzceIds.id("pea_shooter")));
                 assertEquals(original.health(), registry.get(PvzceIds.id("pea_shooter")).health());
                 assertEquals(original.cost(), registry.get(PvzceIds.id("pea_shooter")).cost());
@@ -160,6 +163,11 @@ class MultiplayerRoomTest {
         var json = com.google.gson.JsonParser.parseString(plant).getAsJsonObject();
         json.getAsJsonObject("cost").getAsJsonObject("resources").addProperty("pvzce:sun", 77);
         java.nio.file.Files.writeString(datapack, json.toString());
+        Path language = dir.resolve("datapacks/network-test/assets/test/lang/zh_cn.json");
+        java.nio.file.Files.createDirectories(language.getParent());
+        java.nio.file.Files.writeString(language, "host-art");
+        Path old = dir.resolve("remote-client/datapacks/network-test/assets/test/lang/zh_cn.json");
+        java.nio.file.Files.createDirectories(old.getParent()); java.nio.file.Files.writeString(old, "local-old-art");
         try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
             host.send(new RoomC2S("open", "0", "coop")); host.awaitPacket(RoomS2C.class, 15_000);
             host.send(new PlayLevelC2S(LEVEL, "world", true, CARDS));
@@ -182,6 +190,9 @@ class MultiplayerRoomTest {
                 String log = java.nio.file.Files.readString(dir.resolve("remote-client.log"));
                 assertEquals(0, process.exitValue(), log);
                 assertTrue(log.contains("CONTENT_INSTALLED"), log);
+                assertTrue(log.contains("PACK_ASSETS_INSTALLED"), log);
+                assertTrue(log.contains("REGISTRY_MISMATCH_REJECTED"), log);
+                assertEquals("local-old-art", java.nio.file.Files.readString(old));
                 assertTrue(log.contains("BATTLE_INITIALIZED pvzce:plant_team"), log);
                 assertTrue(log.contains("PLANT_CONFIRMED"), log);
             } finally { process.destroyForcibly(); }
@@ -193,13 +204,12 @@ class MultiplayerRoomTest {
     void humanVersusUsesUnhandicappedEconomyAndProjectsOppositeOutcomes(String hostTeam, @TempDir Path dir) throws Exception {
         try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
             host.send(new RoomC2S("open", "0", "versus")); host.awaitPacket(RoomS2C.class, 15_000);
-            String assets = ContentSnapshot.assets(host.server().resourceManager());
-            try (var guest = new Peer(host.server().multiplayerPort(), assets, "")) {
+            try (var guest = new Peer(host.server().multiplayerPort(), "")) {
                 var peers = List.of(guest);
                 await(host, peers, () -> guest.room != null);
                 assertTrue(guest.room.versus());
                 assertFalse(guest.room.canStart());
-                try (var extra = new Peer(host.server().multiplayerPort(), assets, "")) {
+                try (var extra = new Peer(host.server().multiplayerPort(), "")) {
                     await(host, List.of(extra), () -> extra.room != null && extra.room.state().equals("error"));
                     assertTrue(extra.room.message().contains("已满"));
                 }
@@ -308,7 +318,7 @@ class MultiplayerRoomTest {
         java.nio.file.Files.writeString(path, json.toString());
         try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
             host.send(new RoomC2S("open", "0", "versus")); host.awaitPacket(RoomS2C.class, 15_000);
-            try (var guest = new Peer(host.server().multiplayerPort(), ContentSnapshot.assets(host.server().resourceManager()), "")) {
+            try (var guest = new Peer(host.server().multiplayerPort(), "")) {
                 var peers = List.of(guest);
                 await(host, peers, () -> guest.room != null);
                 host.send(new PlayLevelC2S("pvzce:yard/versus/duel_1", "world", true, List.of(), List.of(), "pvzce:plant_team"));
@@ -334,13 +344,12 @@ class MultiplayerRoomTest {
     @Test void coopAdmitsFourPlayersAndRejectsAnAdditionalSeat(@TempDir Path dir) throws Exception {
         try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
             host.send(new RoomC2S("open", "0", "coop")); host.awaitPacket(RoomS2C.class, 15_000);
-            String assets = ContentSnapshot.assets(host.server().resourceManager());
             int port = host.server().multiplayerPort();
-            try (var one = new Peer(port, assets, ""); var two = new Peer(port, assets, "");
-                 var three = new Peer(port, assets, "")) {
+            try (var one = new Peer(port, ""); var two = new Peer(port, "");
+                 var three = new Peer(port, "")) {
                 var peers = List.of(one, two, three);
                 await(host, peers, () -> three.room != null && one.room != null && two.room != null && three.room.players().size() == 4);
-                try (var extra = new Peer(port, assets, "")) {
+                try (var extra = new Peer(port, "")) {
                     await(host, List.of(extra), () -> extra.room != null && extra.room.state().equals("error"));
                     assertTrue(extra.room.message().contains("已满"));
                     assertTrue(host.server().thread().isAlive());

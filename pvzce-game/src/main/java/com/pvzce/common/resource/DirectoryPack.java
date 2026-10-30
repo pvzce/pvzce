@@ -16,6 +16,8 @@ public final class DirectoryPack implements PvzcePack {
         this.name = name;
     }
 
+    public Path root() { return root; }
+
     @Override
     public String name() {
         return name;

@@ -8,7 +8,7 @@ import com.pvzce.client.gui.screens.LevelSelectScreen;
 import com.pvzce.client.gui.components.Button;
 import com.pvzce.client.gui.screens.LevelSaveDialog;
 import com.pvzce.common.network.packet.LevelSavePromptS2C;
-import com.pvzce.common.network.PvzcePackets;
+
 import com.pvzce.common.network.packet.LevelInitS2C;
 import com.pvzce.common.network.packet.LevelListS2C;
 import com.pvzce.common.network.packet.LevelPayload;
@@ -51,7 +51,7 @@ class LevelRestartClientTest {
                 List.of(new SceneSyncS2C.Cell(0, 0, "pvzce:grass")), List.of(), List.of());
         return new LevelInitS2C(levelId,
                 List.of(new SlotInfo(0, "pvzce:pea_shooter", "plant", 100, 0, true)),
-                List.of("small", "final"), payload, teamId, teamName, PvzcePackets.PROTOCOL_VERSION);
+                List.of("small", "final"), payload, teamId, teamName);
     }
 
     private ClientHarness newClient() throws Exception {

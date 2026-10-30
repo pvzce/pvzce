@@ -75,91 +75,6 @@ import java.util.function.Function;
  * independently, so an id is the entire cross-process contract.
  */
 public final class PvzcePackets {
-    /**
-     * Bumped whenever the wire format or the id table changes incompatibly. The
-     * value travels in {@link LevelInitS2C} so a mismatched peer is reported
-     * instead of silently misbehaving.
-     */
-    // 10: the resource entity kind is "resource" rather than "sun" - every drop used to
-    // travel as a sun, which the client's board lights read as "light the lawn".
-    // 12: entering a level is three packet types (continue / restart / play-with-these-cards)
-    // instead of one "enter level" packet with a restart flag the server had to reinterpret.
-    // 13: ProfileS2C carries the backpack's card-slot count.
-    // 14: entity updates carry remaining armour (a Conehead's cone has three drawings and
-    // the client picks one), and LevelRewardS2C carries the lawn mowers that survived the
-    // level and what they were worth.
-    // 15: ReleaseMowerC2S lets the player send a parked mower by hand instead of waiting for
-    // a zombie to reach the house.
-    // 16: entity spawn/update carry two more presentation fields: whether a zombie is
-    // currently slowed (`chilled`, which the client draws as the frozen look) and a
-    // per-entity scale multiplier (the small sun a small sun-shroom produces is the same
-    // resource as the big one at a smaller size).
-    // 17: the bar's recharge travels with its divisor (SlotInfo.cooldownTotal, so a level
-    // that scales card cooldowns draws the sweep over the real recharge), the level list
-    // carries whether a level was ever beaten (LevelInfo.cleared, which is what the row's
-    // trophy reads), and the reward carries the resource a level handed over when it pays in
-    // objects rather than in cards (LevelRewardS2C.rewardItem).
-    // 27: endless runs are played in rounds. The wave meter's numbers became round-relative
-    // (WaveProgressS2C gained the round), a level that generates its waves has to be told its
-    // current round's wave list (RoundSyncS2C), and a finished round pauses the run for a card
-    // choice (RoundClearS2C / ReselectCardsC2S).
-    // 28: the mutation state carries the run's active level buffs (MutationStateS2C.activeBuffs).
-    // A mutation is what rewrites that list mid-level, and the client used to hear it only once,
-    // in the level init, so the buff icons kept showing what the run started with.
-    // 30: the mutation state carries the bar slots a mutation locked (MutationStateS2C.lockedSlots),
-    // so the bar can draw the padlock on exactly the cards the server refuses.
-    // 31: the debug heartbeat carries the running level's own tick counter (DebugInfoS2C.levelTick),
-    // which is what the tutorial's timed dialogue lines are written against.
-    // 32: the client can ask the server to rebuild its side of the pack stack after the player
-    // switched a pack off (ReloadPacksC2S), which is the first half of a hot reload.
-    // 33: a click with nothing in hand on a vase or one of the vase level's pots is its own
-    // request (SmashContainerC2S). The mallet stopped being a tool the level grants, so the
-    // swing's target - not the tool - is what travels.
-    // 34: a card a broken container held is a seed packet on the lawn rather than a card that
-    // appeared in the bar. Picking one up (PickUpCardC2S) puts the plant in the player's hand,
-    // which the client is told about (HeldCardS2C) and answers with its own two requests -
-    // plant it (PlantHeldCardC2S) or put it back (ReleaseHeldCardC2S).
-    // 35: the shop is reachable without opening the level list, and the profile used to travel
-    // only with that list - so a fresh session drew a zero wallet until a level was started and
-    // left. RequestProfileC2S is the client asking for the profile on its own.
-    // 36: the award packet carries every card, buff and object a clear handed over, as a list,
-    // rather than one field each - a clear can pay several, and the award page lists them all
-    // with their own descriptions instead of describing the first and silently dropping the rest.
-    // 37: the world's difficulty tier travels in the profile (for the level list's badge and the
-    // settings page's tick) and can be switched with SetDifficultyC2S at any time.
-    // 38: a key binding is a setting the player owns (the profile does not carry them: they are a
-    // client preference and travel in pvzce-client.toml), and the chat line is its own packet -
-    // ChatC2S - rather than an empty console command.
-    // 39: the chat line got its own packet (ChatC2S).
-    // 40: the preparation phase's start button (StartWavesC2S).
-    // 41: a plant can be aimed by hand (FireAtC2S: which cannon, and which cell).
-    // 42: the player can be on the zombie side, which places zombies rather than plants
-    // (PlaceZombieC2S).
-    // 43: the rhythm levels' keyboard (RhythmHitC2S: which lane, which note, how well).
-    // 44: how far one card reaches travels with the level (LevelPayload.plantsWholeColumn), so the
-    // placement preview can draw the column it is about to fill.
-    // 45: a music cue can ask the client to preload instead of play (MusicEventS2C.preload), which
-    // is how the level's song is decoded while it loads rather than nine ticks after it was due.
-    // 48: authoritative lily network membership, charge and current haste.
-    // 49: magnetic equipment transfers carry their origin and pull/recovery clocks.
-    // 50: the human's chosen side travels with the level entry (PlayLevelC2S/RestartLevelC2S),
-    //     and the client hands the server its Jev credential (AiSettingsC2S).
-    // 54: fertilizer and attached ladders travel as PlantCareS2C.
-    // 55: separate butter/freeze art and action sequence for exactly one gesture per volley.
-    // 56: authoritative surface profiles, entity/effect elevations and selected operation surfaces.
-    // 57: the HUD's next-wave button - the request (NextWaveC2S) and the server's answer to "may
-    //     the wave be called" (WaveProgressS2C.nextWaveAvailable).
-    // 58: a music cue can be a layer of a song rather than a song (MusicEventS2C.manyZombiesLayer):
-    //     the night roof's drum track rides with its theme and is faded in when the lawn fills up.
-    // 59: staged choices and outpost strikes; wave entries retain their authored surface.
-    // 60: registered per-entity attributes publish computed values at spawn and on mutation.
-    // 61: authoritative ability fusion requests and workshop state.
-    // 62: ability fusion can consume a ground or held seed packet.
-    // 63: fusion level payload uses a drop multiplier and the ordinary shovel slot.
-    // 64: fusion can request random filling from complete, affordable backpack recipes.
-    // 66: save prompts report failed loads without entering a level or disconnecting.
-    public static final int PROTOCOL_VERSION = 68;
-
     /** Server-to-client ids start here; everything below is client-to-server. */
     public static final int S2C_BASE = 64;
 
@@ -273,11 +188,18 @@ public final class PvzcePackets {
     public static final int S2C_ROOM = S2C_BASE + 36;
     public static final int S2C_CONTENT = S2C_BASE + 37;
 
+    public static final int S2C_PACK_MANIFEST = S2C_BASE + 38;
+    public static final int S2C_PACK_CHUNK = S2C_BASE + 39;
+
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
     }
 
     private static final List<Definition> DEFINITIONS = List.of(
+            def(S2C_PACK_MANIFEST, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.PackManifestS2C.class,
+                    com.pvzce.common.network.packet.PackManifestS2C::decode),
+            def(S2C_PACK_CHUNK, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.PackChunkS2C.class,
+                    com.pvzce.common.network.packet.PackChunkS2C::decode),
             def(C2S_ROOM, ConnectionDirection.SERVERBOUND, com.pvzce.common.network.packet.RoomC2S.class,
                     com.pvzce.common.network.packet.RoomC2S::decode),
             def(S2C_ROOM, ConnectionDirection.CLIENTBOUND, com.pvzce.common.network.packet.RoomS2C.class,

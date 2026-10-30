@@ -177,6 +177,12 @@ public final class PvzceConstants {
     public static final int LAN_MAX_ROOMS = 64;
     public static final int NETWORK_TIMEOUT_MILLIS = 15_000;
     public static final int NETWORK_HEARTBEAT_MILLIS = 3_000;
+    public static final int NETWORK_PACK_CHUNK_BYTES = 16 * 1024;
+    public static final int NETWORK_MAX_PACK_BYTES = 64 * 1024 * 1024;
+    public static final int NETWORK_MAX_PACK_TOTAL_BYTES = 256 * 1024 * 1024;
+    public static final int NETWORK_MAX_PACK_FILES = 16384;
+    public static final int NETWORK_MAX_PACKS = 128;
+    public static final int NETWORK_PACK_NEGOTIATION_MILLIS = 5 * 60 * 1000;
     public static final int NETWORK_MAX_FRAME_BYTES = 2 * 1024 * 1024;
     public static final int NETWORK_MAX_QUEUE_BYTES = 16 * 1024 * 1024;
     public static final int MULTIPLAYER_RECONNECT_TICKS = 60 * TICKS_PER_SECOND;

@@ -119,6 +119,8 @@ class PacketProtocolTest {
                 new com.pvzce.common.network.packet.RoomC2S("hello", "player", "resume"),
                 new com.pvzce.common.network.packet.RoomS2C("lobby", "pvzce:level_1", "seat", "resume", false, List.of("host", "guest"), "ready", true, "pvzce:plant_team", true, true),
                 new com.pvzce.common.network.packet.ContentS2C(1, "{}", false),
+                new com.pvzce.common.network.packet.PackManifestS2C(List.of(new com.pvzce.common.network.packet.PackManifestS2C.Pack("test", "abc", 10, true)), false),
+                new com.pvzce.common.network.packet.PackChunkS2C("abc", 2, "e30=", true),
                 new com.pvzce.common.network.packet.StageChoiceC2S("pvzce:yard/minigame/tidal_fortress", "world", 2,
                         List.of("pvzce:wall_nut"), List.of("pvzce:auto_collect")),
                 new com.pvzce.common.network.packet.OutpostStrikeC2S("pvzce:yard/minigame/tidal_fortress", "world",
@@ -189,7 +191,7 @@ class PacketProtocolTest {
                 new com.pvzce.common.network.packet.ReleaseHeldCardC2S(),
 
                 new LevelInitS2C("pvzce:level_1", slots, List.of("normal", "final"), payload,
-                        "pvzce:zombie_team", "僵尸方", PvzcePackets.PROTOCOL_VERSION),
+                        "pvzce:zombie_team", "僵尸方"),
                 new LevelListS2C(List.of(LevelListS2C.LevelInfo.of("pvzce:yard/adventure/level_1", "第一关", "描述",
                         "pvzce:plant_team", teams, "in_progress", "day",
                         "pvzce:yard", "pvzce:adventure", true, true, payload,
@@ -311,7 +313,7 @@ class PacketProtocolTest {
      *
      * <p>Set {@code -Ppvzce.smoke=pvzce.printWire=true} to print the current dump (the build
      * forwards that property into the test JVM); paste it below when the change is intended,
-     * and bump {@code PROTOCOL_VERSION}.
+     * and review the registry fingerprint inputs.
      */
     @Test
     void theWireFormatIsUnchanged() {
@@ -324,7 +326,7 @@ class PacketProtocolTest {
         }
         assertEquals(EXPECTED_WIRE_FORMAT.trim(), actual.trim(),
                 "a packet's bytes changed; if that is intended, print the dump and update"
-                        + " PROTOCOL_VERSION");
+                        + " the golden snapshot");
     }
 
     /** {@code Name:hex} per packet, in sample order. */
@@ -357,6 +359,8 @@ class PacketProtocolTest {
             RoomC2S:280568656c6c6f06706c6179657206726573756d65
             RoomS2C:64056c6f6262790d70767a63653a6c6576656c5f31047365617406726573756d65000204686f7374056775657374057265616479011070767a63653a706c616e745f7465616d0101
             ContentS2C:6500000001027b7d00
+            PackManifestS2C:66010474657374036162630000000a0100
+            PackChunkS2C:670361626300000002046533303d01
             StageChoiceC2S:242270767a63653a796172642f6d696e6967616d652f746964616c5f666f72747265737305776f726c6400000002010e70767a63653a77616c6c5f6e7574011270767a63653a6175746f5f636f6c6c656374
             OutpostStrikeC2S:252270767a63653a796172642f6d696e6967616d652f746964616c5f666f72747265737305776f726c640000000100000005000000031270767a63653a746964616c5f627269646765
             ContinueLevelC2S:010d70767a63653a6c6576656c5f3105776f726c64
@@ -396,7 +400,7 @@ class PacketProtocolTest {
             PickUpCardC2S:180000002a
             PlantHeldCardC2S:1900000003000000010c70767a63653a67726f756e64
             ReleaseHeldCardC2S:1a
-            LevelInitS2C:41000000440d70767a63653a6c6576656c5f3101000000001170767a63653a7065615f73686f6f74657205706c616e74000000640000000c0000012cffffffff0102066e6f726d616c0566696e616c0000000900000005011170767a63653a7065615f73686f6f74657205706c616e741170767a63653a7065615f73686f6f7465722370767a63653a74657874757265732f656e7469746965732f7065615f73686f6f7465720000006400000006011270767a63653a62617369635f7a6f6d6269650100000001000000020b70767a63653a77617465720c70767a63653a67726f756e640b70767a63653a7761746572000000000000000000000000ff7fffff7f7fffff00000000000000000000000000000000001170767a63653a7a6f6d6269655f7465616d09e583b5e5b0b8e696b9
+            LevelInitS2C:410d70767a63653a6c6576656c5f3101000000001170767a63653a7065615f73686f6f74657205706c616e74000000640000000c0000012cffffffff0102066e6f726d616c0566696e616c0000000900000005011170767a63653a7065615f73686f6f74657205706c616e741170767a63653a7065615f73686f6f7465722370767a63653a74657874757265732f656e7469746965732f7065615f73686f6f7465720000006400000006011270767a63653a62617369635f7a6f6d6269650100000001000000020b70767a63653a77617465720c70767a63653a67726f756e640b70767a63653a7761746572000000000000000000000000ff7fffff7f7fffff00000000000000000000000000000000001170767a63653a7a6f6d6269655f7465616d09e583b5e5b0b8e696b9
             LevelListS2C:42021c70767a63653a796172642f616476656e747572652f6c6576656c5f3109e7acace4b880e585b306e68f8fe8bfb01070767a63653a706c616e745f7465616d0b696e5f70726f6772657373036461790a70767a63653a796172640f70767a63653a616476656e747572650101011070767a63653a706c616e745f7465616d09e6a48de789a9e696b90d737572766976655f7761766573010000000900000005011170767a63653a7065615f73686f6f74657205706c616e741170767a63653a7065615f73686f6f7465722370767a63653a74657874757265732f656e7469746965732f7065615f73686f6f7465720000006400000006011270767a63653a62617369635f7a6f6d6269650100000001000000020b70767a63653a77617465720c70767a63653a67726f756e640b70767a63653a7761746572000000000000000000000000ff7fffff7f7fffff00000000000000000000000000000000000001000001f40ae9809ae585b320315f3101056c6576656c1870767a63653a796172642f616476656e747572652f315f3100000001000000001a70767a63653a636f6c6c656374696f6e732f6461795f6c61776e1a70767a63653a636f6c6c656374696f6e732f6461795f6c61776e000000036461790a70767a63653a796172640f70767a63653a616476656e7475726500000000000000000000000000000000000000000000000000000000000001000000000000000003646179021870767a63653a796172642f616476656e747572652f315f311870767a63653a796172642f616476656e747572652f315f3200
             LevelTabsS2C:56020a70767a63653a796172640f70767a63653a616476656e747572651370767a63653a756e63617465676f72697a65641370767a63653a756e63617465676f72697a6564
             LevelSavePromptS2C:430d70767a63653a6c6576656c5f3105776f726c6409e7acace4b880e585b3000004d200000007000000fa00
@@ -551,23 +555,6 @@ class PacketProtocolTest {
         } finally {
             buffer.release();
         }
-    }
-
-    /**
-     * The protocol version travels on the wire in the level-init packet.
-     *
-     * <p>It is not a constant both sides are assumed to share: a client has to be able to read
-     * the server's version and notice that it is older. So the assertion is about what comes
-     * back out of the decoder, not about the field holding what was put into it.
-     */
-    @Test
-    void protocolVersionIsCarriedByTheFirstLevelPacket() {
-        LevelInitS2C init = new LevelInitS2C("pvzce:level_1", List.of(), List.of(),
-                new LevelPayload(9, 5, List.of(), 6, List.of(), List.of(), List.of(), List.of()), "", "",
-                PvzcePackets.PROTOCOL_VERSION - 1);
-        LevelInitS2C decoded = (LevelInitS2C) roundTrip(init);
-        assertEquals(PvzcePackets.PROTOCOL_VERSION - 1, decoded.protocolVersion(),
-                "the version that was encoded is the version that comes back");
     }
 
     /** Encodes a packet with its registry id and decodes it again, the way the transport does. */

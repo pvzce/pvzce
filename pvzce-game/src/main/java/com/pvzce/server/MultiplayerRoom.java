@@ -29,7 +29,8 @@ final class MultiplayerRoom implements AutoCloseable {
     private boolean started;
     private boolean hostReady;
     private String content;
-    private String assetDigest;
+    private SessionPacks.Host packs;
+    private boolean requireAllPacks;
     private String world;
     private String message = "";
 
@@ -42,6 +43,8 @@ final class MultiplayerRoom implements AutoCloseable {
         boolean ready;
         boolean admitted;
         boolean entered;
+        Set<String> packsSelected;
+        boolean snapshotSent;
         long deadline;
         List<Identifier> cards = List.of();
     }
@@ -60,7 +63,7 @@ final class MultiplayerRoom implements AutoCloseable {
         if (packet instanceof RoomC2S room) {
             try {
                 switch (room.action()) {
-                    case "open" -> open(Integer.parseInt(room.value()), room.token().equals("versus"));
+                    case "open" -> open(Integer.parseInt(room.value()), room.token().startsWith("versus"), room.token().endsWith("_all"));
                     case "close" -> { close(); server.leaveLevel(); }
                     case "resume" -> server.suspendLocal(false);
                     case "suspend" -> {
@@ -99,11 +102,12 @@ final class MultiplayerRoom implements AutoCloseable {
         return false;
     }
 
-    private void open(int port, boolean versus) throws IOException {
+    private void open(int port, boolean versus, boolean requireAll) throws IOException {
         if (open()) throw new IllegalArgumentException("已经创建房间");
         if (port < 0 || port > 65535) throw new IllegalArgumentException("端口应为 1～65535");
-        assetDigest = ContentSnapshot.assets(server.resourceManager());
-        content = ContentSnapshot.capture(assetDigest);
+        packs = new SessionPacks.Host(server.resourceManager());
+        requireAllPacks = requireAll;
+        content = ContentSnapshot.capture();
         this.versus = versus;
         this.world = server.currentWorld() == null ? server.worlds().cachedWorld() : server.currentWorld();
         ServerSocket socket = new ServerSocket(port);
@@ -136,7 +140,7 @@ final class MultiplayerRoom implements AutoCloseable {
         while ((connection = accepted.poll()) != null) {
             if (!open()) { connection.close(); handshakes.release(); continue; }
             Connection incoming = connection;
-            pending.add(new Pending(incoming, System.nanoTime() + PvzceConstants.NETWORK_TIMEOUT_MILLIS * 1_000_000L));
+            pending.add(new Pending(incoming, System.nanoTime() + PvzceConstants.NETWORK_PACK_NEGOTIATION_MILLIS * 1_000_000L));
             incoming.setListener(packet -> receive(incoming, packet));
         }
         for (Pending entry : List.copyOf(pending)) {
@@ -150,6 +154,7 @@ final class MultiplayerRoom implements AutoCloseable {
             if (seat.connection != null) {
                 seat.connection.tick();
                 if (!seat.connection.isConnected()) {
+                    if (!seat.admitted) { remove(seat); continue; }
                     seat.connection = null;
                     seat.deadline = System.nanoTime() + PvzceConstants.MULTIPLAYER_RECONNECT_TICKS
                             * 1_000_000_000L / PvzceConstants.TICKS_PER_SECOND;
@@ -169,8 +174,24 @@ final class MultiplayerRoom implements AutoCloseable {
         }
         if (packet instanceof RoomC2S control) {
             switch (control.action()) {
+                case "packs_select" -> {
+                    if (seat.admitted || seat.packsSelected != null) throw new IllegalArgumentException("数据包选择重复");
+                    List<String> choice = new ArrayList<>();
+                    for (var hash : JsonParser.parseString(control.value()).getAsJsonArray()) choice.add(hash.getAsString());
+                    seat.packsSelected = packs.validateSelection(choice, requireAllPacks);
+                }
+                case "pack_get" -> {
+                    if (seat.snapshotSent || seat.packsSelected == null || !seat.packsSelected.contains(control.value()))
+                        throw new IllegalArgumentException("未选择该数据包");
+                    connection.send(packs.chunk(control.value(), Integer.parseInt(control.token())));
+                }
+                case "packs_ready" -> {
+                    if (seat.packsSelected == null || seat.snapshotSent) throw new IllegalArgumentException("数据包确认无效");
+                    seat.snapshotSent = true;
+                    ContentSnapshot.send(content, connection::send);
+                }
                 case "content_ready" -> {
-                    if (!ContentSnapshot.digest(content).equals(control.value())) { connection.disconnect("内容确认无效"); return; }
+                    if (!seat.snapshotSent || seat.admitted || !ContentSnapshot.digest(content).equals(control.value())) { connection.disconnect("内容确认无效"); return; }
                     seat.admitted = true;
                     if (pending.removeIf(p -> p.connection() == connection)) handshakes.release();
                     withActor(seat, () -> server.sendRoomLevelList(world));
@@ -215,8 +236,6 @@ final class MultiplayerRoom implements AutoCloseable {
     private void join(Connection connection, RoomC2S hello) {
         try {
             JsonObject info = JsonParser.parseString(hello.value()).getAsJsonObject();
-            if (!ContentSnapshot.mods().equals(info.get("mods").getAsString())) throw new IllegalArgumentException("模组及版本不一致");
-            if (!assetDigest.equals(info.get("assets").getAsString())) throw new IllegalArgumentException("素材或资源包不一致");
             Seat resume = hello.token().isBlank() ? null : seats.values().stream()
                     .filter(s -> s.token.equals(hello.token())).findFirst().orElse(null);
             if (resume != null && resume.connection != null && resume.connection.isConnected()) throw new IllegalArgumentException("该席位仍在线");
@@ -226,9 +245,9 @@ final class MultiplayerRoom implements AutoCloseable {
             Seat seat = resume == null ? new Seat() : resume;
             String name = info.get("name").getAsString().strip().replaceAll("[\\p{Cntrl}]", "");
             seat.name = name.isEmpty() ? "玩家" : name.substring(0, Math.min(24, name.length()));
-            seat.connection = connection; seat.admitted = false;
+            seat.connection = connection; seat.admitted = false; seat.packsSelected = null; seat.snapshotSent = false;
             seats.put(seat.id, seat);
-            ContentSnapshot.send(content, connection::send);
+            connection.send(packs.manifest(requireAllPacks));
         } catch (RuntimeException e) {
             connection.send(new RoomS2C("error", "", "", "", false, List.of(), "无法加入：" + e.getMessage(), versus, "", false, false));
         }
@@ -390,7 +409,7 @@ final class MultiplayerRoom implements AutoCloseable {
         pending.forEach(p -> p.connection().disconnect("房间已关闭"));
         handshakes.release(pending.size()); pending.clear();
         Connection connection; while ((connection = accepted.poll()) != null) { connection.close(); handshakes.release(); }
-        started = false; content = null;
+        started = false; content = null; packs = null;
         if (server.level() != null) server.level().setHumanVersus(false);
         if (socket != null) host.send(new RoomS2C("closed", "", "", "", true, List.of(), "房间已关闭", versus, "", false, false));
     }

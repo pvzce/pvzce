@@ -18,7 +18,7 @@ class LanDiscoveryTest {
         assertFalse(LanDiscovery.decode(announcement(24860, 2, 2, true, false), source).joinable());
         assertFalse(LanDiscovery.decode(announcement(24860, 1, 2, true, true), source).joinable());
         String incompatible = new String(announcement(24860, 1, 2, true, false), StandardCharsets.UTF_8)
-                .replace("\n" + PvzcePackets.PROTOCOL_VERSION + "\n", "\n99999\n");
+                .replace("\n" + PacketRegistry.fingerprint() + "\n", "\n99999\n");
         assertFalse(LanDiscovery.decode(incompatible.getBytes(StandardCharsets.UTF_8), source).joinable());
         assertNull(LanDiscovery.decode(announcement(0, 1, 4, false, false), source));
         assertNull(LanDiscovery.decode(announcement(24860, 9, 4, false, false), source));

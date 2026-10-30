@@ -70,6 +70,9 @@ public final class MultiplayerScreen extends Screen {
             createCoop = button(280, 530, 160, 34, "创建合作房间", () -> host(false));
             createVersus = button(450, 530, 160, 34, "创建对战房间", () -> host(true));
             button(620, 530, 130, 34, "返回", client::showTitle);
+            button(55, 75, 365, 32, (client.roomRequiresAllPacks() ? "[✓] " : "[ ] ") + "必须接受所有数据包", () -> {
+                client.roomRequiresAllPacks(!client.roomRequiresAllPacks()); rebuild();
+            });
             if (discovery == null) discovery = new LanDiscovery.Browser();
             shownServers = List.of(); shownLan = List.of();
             updateLists();
@@ -211,7 +214,6 @@ public final class MultiplayerScreen extends Screen {
             text("昵称", 490, 91, 1, true);
             text("已保存的服务器", 55, 125, 1.15F, true);
             text("局域网游戏 · 点击房间加入", 55, 331, 1.15F, true);
-            text("选中后加入 / 双击服务器加入", 55, 91, .85F, true);
             text(!storageError.isEmpty() ? storageError : !notice.isEmpty() ? notice : client.connectingMultiplayer() ? "正在连接…" : client.multiplayerMessage(), 55, 589, .85F, true);
         } else {
             canvas.panel(client, 60, 115, 680, 370);
@@ -240,7 +242,7 @@ public final class MultiplayerScreen extends Screen {
         rowText(server.name(), server.address(), "已保存", x, y);
     }
     private void renderLan(PvzceClient ignored, LanDiscovery.Room room, int x, int y) {
-        String state = room.protocol() != com.pvzce.common.network.PvzcePackets.PROTOCOL_VERSION ? "版本不符"
+        String state = !room.protocol().equals(com.pvzce.common.network.PacketRegistry.fingerprint()) ? "网络包不符"
                 : room.players() >= room.capacity() ? "房间已满" : room.versus() && room.playing() ? "对战已开始" : room.playing() ? "游戏中" : "等待加入";
         rowText(room.name(), room.address() + " · " + (room.versus() ? "真人对战" : "合作") + " · " + room.players() + "/" + room.capacity(), state, x, y);
     }

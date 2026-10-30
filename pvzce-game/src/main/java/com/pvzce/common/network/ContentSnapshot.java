@@ -7,9 +7,7 @@ import com.pvzce.api.tag.TagKey;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.common.core.BuiltInRegistries;
 import com.pvzce.common.resource.PvzceDataLoader;
-import com.pvzce.common.resource.PvzceResourceManager;
 import com.pvzce.common.network.packet.ContentS2C;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.*;
@@ -26,27 +24,13 @@ public final class ContentSnapshot implements AutoCloseable {
     public static String digest(String text) {
         return digest(text.getBytes(StandardCharsets.UTF_8));
     }
-    private static String digest(byte[] bytes) {
+    public static String digest(byte[] bytes) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)); }
         catch (NoSuchAlgorithmException e) { throw new AssertionError(e); }
     }
 
-    public static String assets(PvzceResourceManager resources) throws IOException {
-        StringBuilder manifest = new StringBuilder();
-        for (var entry : new TreeMap<>(resources.listResources("assets")).entrySet())
-            manifest.append(entry.getKey()).append(':').append(digest(entry.getValue().bytes())).append('\n');
-        return digest(manifest.toString());
-    }
-
-    public static String mods() {
-        var mods = net.fabricmc.loader.api.FabricLoader.getInstance().getAllMods();
-        return mods.stream().map(m -> m.getMetadata().getId() + "="
-                + m.getMetadata().getVersion().getFriendlyString()).sorted().collect(java.util.stream.Collectors.joining(";"));
-    }
-
-    public static String capture(String assets) {
+    public static String capture() {
         JsonObject root = new JsonObject();
-        root.addProperty("assets", assets);
         JsonObject registries = new JsonObject();
         for (var data : PvzceDataLoader.CONTENT_REGISTRIES) captureRegistry(data, registries);
         root.add("registries", registries);
@@ -75,7 +59,7 @@ public final class ContentSnapshot implements AutoCloseable {
         sink.accept(new ContentS2C(index, digest(snapshot), true));
     }
 
-    public boolean accept(ContentS2C part, String localAssets) {
+    public boolean accept(ContentS2C part) {
         if (!restorers.isEmpty() || part.index() != nextChunk++) throw new IllegalArgumentException("内容快照顺序无效");
         if (!part.last()) {
             if (chunks.length() + part.data().length() > MAX_CHARS) throw new IllegalArgumentException("内容快照过大");
@@ -84,7 +68,6 @@ public final class ContentSnapshot implements AutoCloseable {
         String text = chunks.toString();
         if (!digest(text).equals(part.data())) throw new IllegalArgumentException("内容快照校验失败");
         JsonObject root = JsonParser.parseString(text).getAsJsonObject();
-        if (!localAssets.equals(root.get("assets").getAsString())) throw new IllegalArgumentException("素材包不一致，请安装与房主相同的素材和资源包");
         List<Runnable> installers = new ArrayList<>();
         JsonObject registries = root.getAsJsonObject("registries");
         for (var data : PvzceDataLoader.CONTENT_REGISTRIES) installers.add(decode(data, registries.getAsJsonObject(data.contentPath())));

@@ -5,7 +5,6 @@ import com.pvzce.common.network.ConnectionDirection;
 import com.pvzce.common.network.PacketByteBuf;
 import com.pvzce.common.network.PacketStruct;
 import com.pvzce.common.network.PvzcePacket;
-import com.pvzce.common.network.PvzcePackets;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,19 +17,17 @@ import java.util.Optional;
  * restores the real team instead of resetting the client to the plant team.
  */
 public record LevelInitS2C(String levelId, List<SlotInfo> slots, List<String> waveTypes,
-                           LevelPayload payload, String controlledTeamId, String controlledTeamName,
-                           int protocolVersion) implements PvzcePacket {
+                           LevelPayload payload, String controlledTeamId, String controlledTeamName) implements PvzcePacket {
     public static final PacketStruct.Codec<LevelInitS2C> CODEC = PacketStruct.<LevelInitS2C>builder()
-            .field(LevelInitS2C::protocolVersion, PacketByteBuf::writeInt, PacketByteBuf::readInt)
             .field(LevelInitS2C::levelId, PacketByteBuf::writeString, PacketByteBuf::readString)
             .list(LevelInitS2C::slots, SlotInfo::encode, SlotInfo::decode)
             .stringList(LevelInitS2C::waveTypes)
             .nested(LevelInitS2C::payload, LevelPayload.CODEC)
             .field(LevelInitS2C::controlledTeamId, PacketByteBuf::writeString, PacketByteBuf::readString)
             .field(LevelInitS2C::controlledTeamName, PacketByteBuf::writeString, PacketByteBuf::readString)
-            .build(values -> new LevelInitS2C((String) values.get(1), (List<SlotInfo>) values.get(2),
-                    (List<String>) values.get(3), (LevelPayload) values.get(4),
-                    (String) values.get(5), (String) values.get(6), (Integer) values.get(0)));
+            .build(values -> new LevelInitS2C((String) values.get(0), (List<SlotInfo>) values.get(1),
+                    (List<String>) values.get(2), (LevelPayload) values.get(3),
+                    (String) values.get(4), (String) values.get(5)));
 
     @Override
     public ConnectionDirection direction() {
@@ -80,8 +77,4 @@ public record LevelInitS2C(String levelId, List<SlotInfo> slots, List<String> wa
         return CODEC.decode(buf);
     }
 
-    /** The protocol version this packet was built with. */
-    public static int currentProtocolVersion() {
-        return PvzcePackets.PROTOCOL_VERSION;
-    }
 }

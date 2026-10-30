@@ -25,6 +25,7 @@ public final class PacketRegistry {
 
     private static final Map<Integer, Entry> BY_ID = new ConcurrentHashMap<>();
     private static final Map<Class<?>, Integer> BY_TYPE = new ConcurrentHashMap<>();
+    private static String cachedFingerprint;
 
     private PacketRegistry() {
     }
@@ -47,6 +48,7 @@ public final class PacketRegistry {
         }
         BY_ID.put(id, new Entry(type, direction, decoder));
         BY_TYPE.put(type, id);
+        cachedFingerprint = null;
     }
 
     /** The wire id of a packet instance. */
@@ -70,6 +72,40 @@ public final class PacketRegistry {
                     + ") is " + entry.direction() + " but this connection expects " + direction);
         }
         return entry.decoder().apply(buf);
+    }
+
+    /** Derived from actual registrations, including nested record fields and enum values. */
+    public static String fingerprint() {
+        PvzcePackets.register();
+        synchronized (PacketRegistry.class) {
+            if (cachedFingerprint != null) return cachedFingerprint;
+            StringBuilder manifest = new StringBuilder();
+            for (int id : ids()) {
+                Entry entry = BY_ID.get(id);
+                manifest.append(id).append(':').append(entry.direction()).append(':');
+                describe(entry.type(), manifest, new java.util.HashSet<>());
+                manifest.append('\n');
+            }
+            return cachedFingerprint = ContentSnapshot.digest(manifest.toString());
+        }
+    }
+
+    private static void describe(java.lang.reflect.Type type, StringBuilder out, java.util.Set<Class<?>> seen) {
+        out.append(type.getTypeName());
+        if (type instanceof java.lang.reflect.ParameterizedType parameterized) {
+            for (var argument : parameterized.getActualTypeArguments()) describe(argument, out, seen);
+        } else if (type instanceof Class<?> clazz && seen.add(clazz)) {
+            if (clazz.isRecord()) {
+                out.append('{');
+                for (var field : clazz.getRecordComponents()) {
+                    out.append(field.getName()).append(':');
+                    describe(field.getGenericType(), out, seen);
+                    out.append(';');
+                }
+                out.append('}');
+            } else if (clazz.isEnum()) out.append(java.util.Arrays.stream(clazz.getEnumConstants())
+                    .map(value -> ((Enum<?>) value).name()).toList());
+        }
     }
 
     /** How many ids are in use; the two sides must agree on this for a compatible protocol. */

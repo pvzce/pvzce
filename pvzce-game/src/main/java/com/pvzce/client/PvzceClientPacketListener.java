@@ -49,14 +49,13 @@ public final class PvzceClientPacketListener implements PacketListener {
     public void handle(PvzcePacket packet) {
         if (packet instanceof com.pvzce.common.network.packet.RoomS2C room) {
             client.onMultiplayerRoom(room);
+        } else if (packet instanceof com.pvzce.common.network.packet.PackManifestS2C manifest) {
+            client.onMultiplayerPacks(manifest);
+        } else if (packet instanceof com.pvzce.common.network.packet.PackChunkS2C chunk) {
+            client.onMultiplayerPackChunk(chunk);
         } else if (packet instanceof com.pvzce.common.network.packet.ContentS2C content) {
             client.onMultiplayerContent(content);
         } else if (packet instanceof LevelInitS2C init) {
-            if (init.protocolVersion() != PvzcePackets.PROTOCOL_VERSION) {
-                // Refuse to run a mismatched protocol instead of decoding garbage.
-                client.onProtocolMismatch(init.protocolVersion(), PvzcePackets.PROTOCOL_VERSION);
-                return;
-            }
             level.init(init.levelId(), init.width(), init.height(), init.slots(), init.waveTypes(),
                     init.seedPool(), init.maxSeedSlots(), init.previewZombies(), init.sceneCells(),
                     init.controlledTeamId(), init.controlledTeamName(), init.payload().mechanics(),

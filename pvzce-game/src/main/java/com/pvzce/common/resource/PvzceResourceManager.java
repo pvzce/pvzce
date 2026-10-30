@@ -69,6 +69,10 @@ public final class PvzceResourceManager implements AutoCloseable {
     private final ClassLoader classLoader;
     private Path gameDir;
     private Path workspaceOverlay;
+    private List<Path> sessionPacks = List.of();
+
+    /** Remote packs are session-only and retain the host stack order. */
+    public void sessionPacks(List<Path> roots) { sessionPacks = List.copyOf(roots); }
 
     /** Session-only overlay: never part of pack discovery or saved selection. */
     public Path workspaceOverlay() { return workspaceOverlay; }
@@ -101,6 +105,7 @@ public final class PvzceResourceManager implements AutoCloseable {
             }
         }
         if (workspaceOverlay != null) packs.add(new DirectoryPack(workspaceOverlay, "workshop-preview"));
+        for (Path root : sessionPacks) packs.add(new DirectoryPack(root, "server/" + root.getFileName()));
     }
 
     private void addDirectoryPacks(PackRoot root, PackSelection selection) throws IOException {

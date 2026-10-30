@@ -528,6 +528,13 @@ final public class SmokeDriver {
     boolean openNamedScreen(String smokeScreen) {
         if ("multiplayer".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(client));
+        } else if ("multiplayer_packs".equals(smokeScreen) || "multiplayer_packs_required".equals(smokeScreen)) {
+            var packs = java.util.stream.IntStream.range(0, 8).mapToObj(i ->
+                    new com.pvzce.common.network.packet.PackManifestS2C.Pack(
+                            i < 2 ? "玩法扩展 · " + (i + 1) : "材质与语言 · " + (i + 1),
+                            com.pvzce.common.network.ContentSnapshot.digest("smoke-pack-" + i), 1024, i < 2)).toList();
+            client.setScreenReplacing(new com.pvzce.client.gui.screens.ServerPacksScreen(client,
+                    new com.pvzce.common.network.packet.PackManifestS2C(packs, smokeScreen.endsWith("_required"))));
         } else if ("multiplayer_room".equals(smokeScreen) || "multiplayer_versus".equals(smokeScreen)) {
             client.setScreenReplacing(new com.pvzce.client.gui.screens.MultiplayerScreen(client));
             client.hostMultiplayer(0, "multiplayer_versus".equals(smokeScreen));
