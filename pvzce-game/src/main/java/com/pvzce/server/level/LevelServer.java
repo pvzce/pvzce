@@ -1671,7 +1671,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
 
     public List<ZombieEntity> enemiesInRow(int row, Team team) {
         return entities.stream()
-                .filter(e -> e instanceof ZombieEntity z && z.isAlive() && z.gridY() == row
+                .filter(e -> e instanceof ZombieEntity z && z.isAlive() && z.targetableInRow(row)
                         && isEnemyOf(z.team(), team))
                 .map(e -> (ZombieEntity) e)
                 .toList();
@@ -2465,7 +2465,10 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             // The zombie's own row, not its position: a zombie straddling a row boundary is
             // in one row or the other and the row it reports is the one it walks in. And the
             // source's enemies only, for the same reason the area blast asks.
-            if (zombie.gridY() == row && isEnemyOf(zombie.team(), sourceTeam)) {
+            if (type != null && type.burns() && isEnemyOf(zombie.team(), sourceTeam)) {
+                zombie.onRowFire(row, this);
+            }
+            if (zombie.targetableInRow(row) && isEnemyOf(zombie.team(), sourceTeam)) {
                 zombie.damage(damage, type, this);
             }
         }
@@ -4669,6 +4672,7 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 && humanTeamId.equals(PvzceIds.PLANT_TEAM)
                 && StagesMechanic.isReady(this)
                 && (OutpostsMechanic.plan(this) == null || OutpostsMechanic.plan(this).goal().isEmpty())
+                && !LevelMechanics.controlsVictory(mechanics)
                 && waves.allWavesReleased()
                 && hostileZombieCount() == 0) {
             markEnd(teams.get(PvzceIds.PLANT_TEAM));
@@ -7259,7 +7263,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
                 migrated.putString("surface", SceneBoard.DEFAULT_SURFACE);
                 entity.restoreState(migrated);
             } else entity.restoreState(entityTag);
-            if (entity.health() > 0 && !entity.isRemoved()) {
+            if (!entity.isRemoved() && (entity.health() > 0
+                    || entity instanceof ZombieEntity zombie && zombie.isDying())) {
                 addEntity(entity);
                 if (entity instanceof PlantEntity plant) plant.onRestored(this);
             }

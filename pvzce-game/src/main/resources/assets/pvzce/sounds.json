@@ -1614,5 +1614,13 @@
         "stream": true
       }
     ]
+  },
+  "music/brainiac_maniac": {
+    "sounds": [
+      {
+        "name": "pvzce:sounds/music/brainiac_maniac",
+        "stream": true
+      }
+    ]
   }
 }

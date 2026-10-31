@@ -72,6 +72,7 @@ public final class LevelMechanics {
     public static final PreparationMechanic PREPARATION = new PreparationMechanic();
     /** Pairs of portals a ground zombie travels between. */
     public static final PortalMechanic PORTAL = new PortalMechanic();
+    public static final ZombossMechanic ZOMBOSS = new ZombossMechanic();
     public static final ResonanceMechanic RESONANCE = new ResonanceMechanic();
     /** Seed packets the level drops onto the lawn on a clock. */
     public static final SeedRainMechanic SEED_RAIN = new SeedRainMechanic();
@@ -126,6 +127,7 @@ public final class LevelMechanics {
         register(PvzceIds.MECHANIC_PREPARATION, PREPARATION);
         register(PvzceIds.MECHANIC_PORTAL, PORTAL);
         register(PvzceIds.MECHANIC_RESONANCE, RESONANCE);
+        register(PvzceIds.MECHANIC_ZOMBOSS, ZOMBOSS);
         register(PvzceIds.MECHANIC_SEED_RAIN, SEED_RAIN);
         register(PvzceIds.MECHANIC_PLANT_GARDEN, PLANT_GARDEN);
         register(PvzceIds.MECHANIC_RHYTHM, RHYTHM);
@@ -138,6 +140,14 @@ public final class LevelMechanics {
     public static void register(Identifier id, LevelMechanic<?> mechanic) {
         BuiltInRegistries.registerStatic((com.pvzce.api.registry.Registry) BuiltInRegistries.LEVEL_MECHANICS,
                 id.toString(), mechanic);
+    }
+
+    public static boolean controlsVictory(List<TypedMechanic> mechanics) {
+        for (TypedMechanic block : mechanics) {
+            LevelMechanic<?> mechanic = get(block.type());
+            if (mechanic != null && mechanic.controlsVictory()) return true;
+        }
+        return false;
     }
 
     public static LevelMechanic<?> get(Identifier id) {

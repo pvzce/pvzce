@@ -2000,13 +2000,36 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         output="zombie_boss",
         group="zombie/boss",
         reanim="Zombie_boss.reanim",
-        target_box=(1.40, 2.00),
-        fit_height_only=False,
-        # The RV's wheels turn in every frame of its clip, so the drive is a genuine
-        # locomotion clip: 3.17 s per cycle drawn for 0.15 cells/s.
-        animations=zombie_animations(walk=False, eat_rate=1.0, all_deaths=False) | {
-            "walk": {"mask": "anim_RV_1", "loop": True, "reference_speed": 0.15},
-            "eat": {"mask": "anim_stomp_1", "loop": True, "rate": 1.0},
+        damage_states={
+            host: tuple((host + f"_damage{i}", f"Zombie_boss_{sprite}_damage{i}.png") for i in (1, 2))
+            for host, sprite in [("head", "head"), ("jaw", "jaw"), ("foot", "foot"),
+                                 ("outerarm_hand", "outerarm_hand")]
+        },
+        # The complete machine spans the roof, anchored beside its bottom row.
+        target_box=(4.5, 6.0),
+        fit_height_only=True,
+        animations={
+            "idle": {"mask": "anim_idle", "loop": True},
+            "boss_idle": {"mask": "anim_idle", "loop": True},
+            "boss_enter": {"mask": "anim_enter", "loop": False, "on_end": "hold"},
+            "boss_head_enter": {"mask": "anim_head_enter", "loop": False, "on_end": "hold"},
+            "boss_head_idle": {"mask": "anim_head_idle", "loop": True},
+            "boss_head_leave": {"mask": "anim_head_leave", "loop": False, "on_end": "hold"},
+            "boss_bungee": {"mask": "anim_bungee_1_enter", "loop": False, "on_end": "hold"},
+            "boss_bungee_leave": {"mask": "anim_bungee_1_leave", "loop": False, "on_end": "hold"},
+            "boss_rv": {"mask": "anim_RV_1", "loop": False, "on_end": "hold",
+                        "force_hidden": r"^rv(wheel.*)?$"},
+            "death": {"mask": "anim_death", "loop": False, "on_end": "hold"},
+            "death_burned": {"mask": "anim_death", "loop": False, "on_end": "hold"},
+        } | {
+            f"boss_spawn_{row}": {"mask": f"anim_spawn_{row}", "loop": False, "on_end": "hold"}
+            for row in range(1, 6)
+        } | {
+            f"boss_stomp_{row}": {"mask": f"anim_stomp_{row}", "loop": False, "on_end": "hold"}
+            for row in range(1, 5)
+        } | {
+            f"boss_head_attack_{row}": {"mask": f"anim_head_attack_{row}", "loop": False, "on_end": "hold"}
+            for row in range(1, 6)
         },
     ),
     # ------------------------------------------------------------------
@@ -2264,6 +2287,18 @@ def discover_assets_all(input_dir: Path, input_path: Path, refs: Sequence[str]) 
             raise SystemExit(f"Could not map image ref {ref!r} (key {key!r}) to a PNG in {input_dir}")
         source = paths[0]
         width, height = core.read_png_size(source)
+        # PopCap stores a few large parts as JPEG colour plus a grayscale *_ alpha mask.
+        # Treating the mask as the art makes the boss's neck/body an opaque white silhouette.
+        colour_path = source.with_name(source.stem.removesuffix("_") + ".jpg")
+        if source.stem.endswith("_") and colour_path.is_file():
+            from PIL import Image
+            combined = REPO_ROOT / "build" / "reanim_rgba" / source.name
+            combined.parent.mkdir(parents=True, exist_ok=True)
+            with Image.open(colour_path) as colour, Image.open(source) as alpha:
+                rgba = colour.convert("RGBA")
+                rgba.putalpha(alpha.convert("L"))
+                rgba.save(combined)
+            source = combined
         assets[ref] = core.ImageAsset(ref=ref, source=source, width=width, height=height)
     return assets
 
@@ -3246,6 +3281,39 @@ def build_controller_json(
     }
 
 
+def append_boss_driver(bones, host_tracks, input_dir, frame_count):
+    """Bake the original cockpit attachment (head2 + 28,-84, scale 1.2) into the controller."""
+    driver_path = input_dir / "Zombie_Boss_driver.reanim"
+    _, tracks = core.load_reanim(driver_path)
+    refs = list(dict.fromkeys(s.image for t in tracks for s in t.frames if s.image))
+    assets = discover_assets_all(input_dir, driver_path, refs)
+    pieces = core.build_render_pieces(tracks, assets, driver_path, frame_count, wrap_source=True)
+    driver = pieces_to_bones(pieces, driver_path)
+    host = next(t for t in host_tracks if t.name == "Boss_head2")
+    idle_a, idle_b = mask_range(tracks, "anim_idle")
+    for bone in driver:
+        source_states = list(bone.states)
+        source_visible = list(bone.visibility)
+        bone.name = "driver_" + bone.name
+        bone.order += max(b.order for b in bones) + 1
+        baked, visible = [], []
+        for frame in range(frame_count):
+            source_frame = idle_a + frame % (idle_b - idle_a + 1)
+            state = source_states[source_frame]
+            anchor = host.frames[frame]
+            kx, ky = math.radians(anchor.kx), math.radians(anchor.ky)
+            x, y = state.x * 1.2 + 28, state.y * 1.2 - 84
+            baked.append(core.FrameState(
+                x=anchor.x + x * anchor.sx * math.cos(kx) - y * anchor.sy * math.sin(ky),
+                y=anchor.y + x * anchor.sx * math.sin(kx) + y * anchor.sy * math.cos(ky),
+                kx=state.kx + anchor.kx, ky=state.ky + anchor.ky,
+                sx=state.sx * 1.2 * anchor.sx, sy=state.sy * 1.2 * anchor.sy,
+                f=state.f, a=state.a, image=state.image))
+            visible.append(source_visible[source_frame] and anchor.f >= 0)
+        bone.states, bone.visibility = baked, visible
+    bones.extend(driver)
+
+
 def process_entity(
     config: EntityConfig,
     input_dir: Path,
@@ -3306,6 +3374,8 @@ def process_entity(
         extra_bones = pieces_to_bones(extra_pieces, extra_path)
         attached_bones.update(bone.name for bone in extra_bones)
         bones.extend(extra_bones)
+    if config.output == "zombie_boss":
+        append_boss_driver(bones, tracks, input_dir, frame_count)
     # After the extras, so a damage state of an attached bone (the flag) is welded like
     # its host; before the scale, because the extras are invisible and must not move it.
     apply_damage_states(config, bones, attached_bones, input_dir)
@@ -3443,6 +3513,8 @@ def copy_fog_item_sprites(resources: Path, wanted: Optional[Set[str]]) -> None:
     import shutil
     sprites = {
         "cactus": [("im7/images/ProjectileCactus.png", "projectile/cactus_spike.png")],
+        "zombie_boss": [("anim/Zombie_boss_fireball.png", "zombie/boss/ball/fire.png"),
+                        ("anim/Zombie_boss_iceball.png", "zombie/boss/ball/ice.png")],
         "cob_cannon": [("im7/images/CobCannon_target.png", "status/cob_target.png"),
                        ("im7/images/CobCannon_target_shadow.png", "status/cob_target_shadow.png")],
         "starfruit": [("im7/images/Projectile_star.png", "projectile/star.png")],
@@ -3453,6 +3525,10 @@ def copy_fog_item_sprites(resources: Path, wanted: Optional[Set[str]]) -> None:
             ("Zombie_jackbox_box.png", "jack_box"),
         ]],
     }
+    if wanted is None or "zombie_boss" in wanted:
+        music = resources / "assets/pvzce/sounds/music/brainiac_maniac.ogg"
+        music.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / "refer/ms0/brainiac_maniac.ogg", music)
     for entity, entries in sprites.items():
         if wanted is not None and entity not in wanted:
             continue

@@ -49,6 +49,7 @@ public final class ClientMechanics {
         register(new PortalClientMechanic());
         register(new SeedRainClientMechanic());
         register(new ResonanceClientMechanic());
+        register(new ZombossClientMechanic());
         register(new RhythmClientMechanic());
         register(new VersusClientMechanic());
     }

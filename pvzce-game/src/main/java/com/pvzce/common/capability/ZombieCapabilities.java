@@ -48,6 +48,8 @@ public final class ZombieCapabilities {
     public static final CapabilityType<FlyCapability> FLY = type("fly", FlyCapability.CODEC);
     public static final CapabilityType<DigCapability> DIG = type("dig", DigCapability.CODEC);
     public static final CapabilityType<HammerCapability> HAMMER = type("hammer", HammerCapability.CODEC);
+    public static final CapabilityType<com.pvzce.common.capability.zombie.ZombossCapability> ZOMBOSS =
+            type("zomboss", com.pvzce.common.capability.zombie.ZombossCapability.CODEC);
     public static final CapabilityType<BossPhasesCapability> BOSS_PHASES = type("boss_phases", BossPhasesCapability.CODEC);
     /**
      * Calls a crew of backup dancers and keeps the formation full.
@@ -125,6 +127,7 @@ public final class ZombieCapabilities {
         register(DIG, "dig");
         register(HAMMER, "hammer");
         register(BOSS_PHASES, "boss_phases");
+        register(ZOMBOSS, "zomboss");
         register(SUMMON_DANCERS, "summon_dancers");
         register(SUBMERGE, "submerge");
         register(FLOAT, "float");

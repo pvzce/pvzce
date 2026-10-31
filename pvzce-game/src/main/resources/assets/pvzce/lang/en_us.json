@@ -1260,5 +1260,17 @@
   "pvzce.lighting.parameter.saturation": "Saturation",
   "pvzce.lighting.parameter.hue": "HSL hue (degrees)",
   "pvzce.lighting.parameter.hsl_saturation": "HSL saturation",
-  "pvzce.lighting.parameter.lightness": "HSL lightness"
+  "pvzce.lighting.parameter.lightness": "HSL lightness",
+  "gui.pvzce.zomboss.name": "Dr. Zomboss",
+  "gui.pvzce.zomboss.enter": "Entering",
+  "gui.pvzce.zomboss.idle": "Preparing",
+  "gui.pvzce.zomboss.spawn": "Summoning",
+  "gui.pvzce.zomboss.exposed": "Head lowered · Attack!",
+  "gui.pvzce.zomboss.head_leave": "Raising head",
+  "gui.pvzce.zomboss.rv": "Camper van",
+  "gui.pvzce.zomboss.stomp": "Stomp",
+  "gui.pvzce.zomboss.bungee": "Bungee raid",
+  "gui.pvzce.zomboss.death": "Zombot defeated",
+  "gui.pvzce.zomboss.frozen": "Frozen · Attack!",
+  "pvzce.mechanic.zomboss.name": "Zomboss battle"
 }

@@ -1,34 +1,10 @@
 {
   "id": "pvzce:zombie_boss",
-  "health": 5000,
-  "move_speed": 0.15,
+  "health": 60000,
+  "move_speed": 0,
   "capabilities": [
     {
-      "type": "pvzce:boss_phases",
-      "phases": [
-        {
-          "at_hp": 0.8,
-          "summons": [
-            "pvzce:basic_zombie"
-          ],
-          "ability": "slam"
-        },
-        {
-          "at_hp": 0.5,
-          "summons": [
-            "pvzce:buckethead_zombie",
-            "pvzce:door_zombie"
-          ],
-          "ability": "summon"
-        },
-        {
-          "at_hp": 0.3,
-          "summons": [
-            "pvzce:gargantuar"
-          ],
-          "ability": "charge"
-        }
-      ]
+      "type": "pvzce:zomboss"
     }
   ],
   "sounds": {
@@ -43,7 +19,6 @@
   "drops_arm": false,
   "drops_head": false,
   "animations": {
-    "death_burned": "pvzce:zombie/charred/zombie_charred",
-    "death": "pvzce:zombie/boss/zombie_boss"
+    "death_burned": "pvzce:zombie/boss/zombie_boss"
   }
 }

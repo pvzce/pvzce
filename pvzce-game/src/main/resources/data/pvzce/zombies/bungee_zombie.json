@@ -22,6 +22,7 @@
   "drops_arm": false,
   "drops_head": false,
   "animations": {
-    "death_burned": "pvzce:zombie/charred/zombie_charred"
+    "death_burned": "pvzce:zombie/charred/zombie_charred",
+    "death": "pvzce:zombie/basic/basic_zombie"
   }
 }

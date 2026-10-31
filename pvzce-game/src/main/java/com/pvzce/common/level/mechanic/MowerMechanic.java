@@ -347,6 +347,15 @@ public final class MowerMechanic implements LevelMechanic<MowerData> {
          * <p>Deliberately allowed with nothing in the row: the player may be sending it
          * ahead of a wave, which is the whole point of being able to do it by hand.
          */
+        public void crush(int row, float x, float radius) {
+            Mower mower = mowers.get(row);
+            if (mower != null && mower.state != STATE_USED && Math.abs(mower.x - x) <= radius) {
+                mower.state = STATE_USED;
+                mower.launchSoundPending = false;
+                dirty = true;
+            }
+        }
+
         public boolean release(int row) {
             Mower mower = mowers.get(row);
             if (mower == null || mower.state != STATE_READY) {

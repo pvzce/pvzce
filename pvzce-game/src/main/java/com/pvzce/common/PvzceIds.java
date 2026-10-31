@@ -551,6 +551,7 @@ public final class PvzceIds {
     public static final Identifier MECHANIC_PREPARATION = id("preparation");
     /** 斗转星移: pairs of cells a ground zombie travels between. */
     public static final Identifier MECHANIC_PORTAL = id("portal");
+    public static final Identifier MECHANIC_ZOMBOSS = id("zomboss");
     public static final Identifier MECHANIC_RESONANCE = id("resonance");
     public static final Identifier ECHO_LILY = id("echo_lily");
     public static final Identifier RESONANCE_MOSS = id("resonance_moss");

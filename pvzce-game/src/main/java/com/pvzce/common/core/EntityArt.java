@@ -32,6 +32,11 @@ import static com.pvzce.common.PvzceConstants.*;
  * registry lookup; the client renderer and the server-side card resolver both call it.
  */
 public final class EntityArt {
+    public static final Identifier ZOMBOSS_RV = Identifier.withDefaultNamespace("textures/entities/zombie/boss/zombie_boss/rv");
+    public static final Identifier ZOMBOSS_RV_WHEEL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/zombie_boss/rvwheel");
+    public static final Identifier ZOMBOSS_FIREBALL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/ball/fire");
+    public static final Identifier ZOMBOSS_ICEBALL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/ball/ice");
+
     /** Presentation of a luminous content item; shared by light selection and sprite emission. */
     public record Emission(float radius, float height, float red, float green, float blue,
                            float strength, float selfGlow) {}

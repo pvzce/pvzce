@@ -1260,5 +1260,17 @@
   "pvzce.lighting.parameter.saturation": "饱和度",
   "pvzce.lighting.parameter.hue": "HSL 色相（度）",
   "pvzce.lighting.parameter.hsl_saturation": "HSL 饱和度",
-  "pvzce.lighting.parameter.lightness": "HSL 明度"
+  "pvzce.lighting.parameter.lightness": "HSL 明度",
+  "gui.pvzce.zomboss.name": "僵王博士",
+  "gui.pvzce.zomboss.enter": "机甲入场",
+  "gui.pvzce.zomboss.idle": "召唤准备",
+  "gui.pvzce.zomboss.spawn": "召唤僵尸",
+  "gui.pvzce.zomboss.exposed": "低头 · 可以攻击",
+  "gui.pvzce.zomboss.head_leave": "抬头",
+  "gui.pvzce.zomboss.rv": "投掷房车",
+  "gui.pvzce.zomboss.stomp": "踩踏",
+  "gui.pvzce.zomboss.bungee": "蹦极偷袭",
+  "gui.pvzce.zomboss.death": "机甲击破",
+  "gui.pvzce.zomboss.frozen": "冻结 · 可以攻击",
+  "pvzce.mechanic.zomboss.name": "僵王战"
 }

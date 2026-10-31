@@ -8,6 +8,30 @@ package com.pvzce.common;
  * to declare its own copies of both, which were dead and looked authoritative.
  */
 public final class PvzceConstants {
+    // Original boss clocks converted from 100 updates/s to this simulation's 60 tps.
+    public static final int ZOMBOSS_OPENING_SPAWN = 300, ZOMBOSS_SPAWN_INTERVAL = 300;
+    public static final int ZOMBOSS_FIRST_HEAD = 3000, ZOMBOSS_HEAD_INTERVAL = 2400;
+    public static final int ZOMBOSS_CLOCK_VARIATION = 600, ZOMBOSS_SPAWN_VARIATION = 60;
+    public static final int ZOMBOSS_SPAWN_HURT_INTERVAL = 240, ZOMBOSS_SPAWN_DAMAGED_INTERVAL = 120;
+    public static final float ZOMBOSS_FIRST_DAMAGE = 0.8F, ZOMBOSS_SECOND_DAMAGE = 0.5F;
+    public static final int ZOMBOSS_ENTER_TICKS = 195, ZOMBOSS_DEATH_TICKS = 540;
+    public static final int ZOMBOSS_SPAWN_TICKS = 105, ZOMBOSS_STOMP_TICKS = 150, ZOMBOSS_RV_TICKS = 190;
+    public static final int ZOMBOSS_BUNGEE_TICKS = 120, ZOMBOSS_BUNGEE_LEAVE_TICKS = 80;
+    public static final int ZOMBOSS_HEAD_ENTER_TICKS = 285, ZOMBOSS_HEAD_LEAVE_TICKS = 225;
+    public static final int ZOMBOSS_HEAD_BEFORE_TICKS = 300, ZOMBOSS_HEAD_AFTER_TICKS = 180;
+    public static final int ZOMBOSS_SPIT_TICKS = 210;
+    public static final int ZOMBOSS_STOMP_INTERVAL = 3300, ZOMBOSS_BUNGEE_INTERVAL = 2400;
+    public static final int ZOMBOSS_BUNGEE_COUNT = 3;
+    public static final int ZOMBOSS_NORMAL_UNTIL = 2100, ZOMBOSS_CONE_UNTIL = 4800, ZOMBOSS_BUCKET_UNTIL = 7500;
+    public static final float ZOMBOSS_ANCHOR_X = 8.5F, ZOMBOSS_ANCHOR_Y = 0.5F;
+    public static final float ZOMBOSS_HEAD_X = 6.55F, ZOMBOSS_HEAD_Y = 2F;
+    public static final float ZOMBOSS_SUMMON_X = 7.5F;
+    public static final float ZOMBOSS_BALL_SPEED = 0.9F, ZOMBOSS_BALL_RADIUS = 0.55F;
+    public static final float ZOMBOSS_RV_CONTACT_FRACTION = 0.65F;
+    public static final float ZOMBOSS_RV_RENDER_WIDTH = 3.4F, ZOMBOSS_RV_RENDER_HEIGHT = 1.55F;
+    public static final float ZOMBOSS_RV_WHEEL_SIZE = 0.5F;
+    public static final float ZOMBOSS_BALL_RENDER_SIZE = 1.65F;
+    public static final int ZOMBOSS_SYNC_TICKS = 3;
     public static final float LIGHT_DAY_AMBIENT = 0.44F;
     public static final float LIGHT_DAY_DIRECT = 0.92F;
     public static final float LIGHT_NIGHT_AMBIENT = 0.62F;

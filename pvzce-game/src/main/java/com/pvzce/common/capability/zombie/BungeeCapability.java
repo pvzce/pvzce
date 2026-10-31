@@ -83,6 +83,7 @@ public final class BungeeCapability implements ZombieCapability {
         this.riseTicks = Math.max(1, riseTicks);
         this.dropHeight = Math.max(0F, dropHeight);
         this.retries = Math.max(1, retries);
+        this.attemptsLeft = this.retries;
         this.sound = sound;
     }
 
@@ -196,7 +197,6 @@ public final class BungeeCapability implements ZombieCapability {
 
     /** Picks a column with something in it, or leaves if there is nothing worth taking. */
     private boolean arrive(ZombieEntity zombie, LevelAccess level) {
-        attemptsLeft = retries;
         if (cargo == null && !playerTarget) targetColumn = pickColumn(zombie, level);
         zombie.setAnimation(EntityAnimations.BUNGEE_HOLD);
         if (targetColumn < 0) {
@@ -266,7 +266,7 @@ public final class BungeeCapability implements ZombieCapability {
             if (plant == null) {
                 // Eaten by something else between the drop and the grab. Try again with what is
                 // left, or leave.
-                if (--attemptsLeft > 0) {
+                if (!playerTarget && --attemptsLeft > 0) {
                     stage = Stage.ARRIVING;
                     phaseTicks = 0;
                 } else {
@@ -308,6 +308,7 @@ public final class BungeeCapability implements ZombieCapability {
     @Override
     public void save(CompoundTag tag) {
         tag.putInt("phase", phaseTicks);
+        tag.putInt("attemptsLeft", attemptsLeft);
         tag.putInt("target", targetColumn);
         tag.putByte("playerTarget", (byte) (playerTarget ? 1 : 0));
         tag.putInt("plant", targetPlantId);
@@ -320,6 +321,7 @@ public final class BungeeCapability implements ZombieCapability {
     @Override
     public void load(CompoundTag tag) {
         phaseTicks = Math.max(0, tag.getInt("phase"));
+        attemptsLeft = tag.contains("attemptsLeft") ? tag.getInt("attemptsLeft") : retries;
         targetColumn = tag.getInt("target");
         playerTarget = tag.getInt("playerTarget") != 0;
         targetPlantId = tag.getInt("plant");

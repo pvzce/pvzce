@@ -15,6 +15,18 @@ import com.pvzce.server.entity.ZombieEntity;
  * can never silently disable base movement.
  */
 public interface ZombieCapability extends EntityCapability {
+    /** Phase gates apply before armour, including damage types that bypass armour. */
+    default boolean acceptsDamage(ZombieEntity zombie) { return true; }
+
+    default boolean acceptsStatus(ZombieEntity zombie, com.pvzce.api.content.ZombieStatus status) { return true; }
+
+    /** A large target can be reached by attacks from more than its anchor row. */
+    default boolean targetableInRow(ZombieEntity zombie, int row) { return zombie.gridY() == row; }
+
+    default void onScreenFreeze(ZombieEntity zombie, LevelAccess level) {}
+
+    default void onRowFire(ZombieEntity zombie, int row, LevelAccess level) {}
+
     /** A carried metal object, independent of whether it protects the body. */
     default com.pvzce.api.util.Identifier magneticItem(ZombieEntity zombie) { return null; }
 
@@ -130,6 +142,9 @@ public interface ZombieCapability extends EntityCapability {
                              com.pvzce.api.content.DamageTypeDef type) {
         return onImpact(zombie, damage, level);
     }
+
+    /** Optional longer death presentation; zero keeps the ordinary corpse lifetime. */
+    default int deathDurationTicks() { return 0; }
 
     /** Called once when the zombie's health reaches zero. */
     default void onDeath(ZombieEntity zombie, LevelAccess level) {

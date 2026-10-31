@@ -230,6 +230,27 @@ public class ZombieEntity extends PvzceEntity {
         this.speedBoostTicks = Math.max(this.speedBoostTicks, ticks);
     }
 
+    private boolean acceptsDamage() {
+        for (Instance instance : capabilities) if (!instance.capability.acceptsDamage(this)) return false;
+        return true;
+    }
+
+    public boolean targetableInRow(int row) {
+        if (capabilities.isEmpty()) return gridY() == row;
+        for (Instance instance : capabilities) {
+            if (instance.capability.targetableInRow(this, row)) return true;
+        }
+        return false;
+    }
+
+    public void onScreenFreeze(LevelAccess level) {
+        for (Instance instance : capabilities) instance.capability.onScreenFreeze(this, level);
+    }
+
+    public void onRowFire(int row, LevelAccess level) {
+        for (Instance instance : capabilities) instance.capability.onRowFire(this, row, level);
+    }
+
     public boolean canBeHitByGround() {
         for (Instance instance : capabilities) {
             if (!instance.capability.canBeHitByGround(this)) {
@@ -786,7 +807,7 @@ public class ZombieEntity extends PvzceEntity {
     /** Area shots share projectile armour routing but emit their landing effect only once. */
     public void damage(ProjectileDef projectile, int amount, LevelAccess level,
                        com.pvzce.api.util.Identifier typeOverride, boolean emitImpact) {
-        if (!isAlive()) {
+        if (!isAlive() || !acceptsDamage()) {
             return;
         }
         int dmg = scaled(amount, level);
@@ -847,7 +868,7 @@ public class ZombieEntity extends PvzceEntity {
      * not-yet-loaded registry cannot turn a hit into a free pass.
      */
     public void damage(int amount, DamageTypeDef type, LevelAccess level) {
-        if (!isAlive()) {
+        if (!isAlive() || !acceptsDamage()) {
             return;
         }
         int dmg = scaled(amount, level);
@@ -972,7 +993,7 @@ public class ZombieEntity extends PvzceEntity {
             // The body stays for the death clip (see CORPSE_TICKS) instead of leaving the
             // world on this tick: the animation is the only thing that says what just
             // happened, and a despawn in the same breath never showed any of it.
-            corpseTicks = CORPSE_TICKS;
+            corpseTicks = corpseLifetime();
             // The burnt clip is a different model (the original's charred zombie), reached
             // through the definition's own `animations` map - a state the art does not define
             // falls back to `idle` on the client, so a definition that opts into fire deaths
@@ -1038,8 +1059,14 @@ public class ZombieEntity extends PvzceEntity {
         }
     }
 
+    /** Removes one status, for effects such as fire thawing an exposed target. */
+    public void clearStatus(ZombieStatus status) {
+        statuses.removeIf(instance -> instance.status == status);
+    }
+
     /** Applies (or refreshes) a status effect; the caller supplies strength and duration. */
     public void applyStatus(ZombieStatus status, int ticks, float magnitude) {
+        for (Instance instance : capabilities) if (!instance.capability.acceptsStatus(this, status)) return;
         if (ticks <= 0) {
             return;
         }
@@ -1193,6 +1220,12 @@ public class ZombieEntity extends PvzceEntity {
         return tag;
     }
 
+    private int corpseLifetime() {
+        int lifetime = CORPSE_TICKS;
+        for (Instance instance : capabilities) lifetime = Math.max(lifetime, instance.capability.deathDurationTicks());
+        return lifetime;
+    }
+
     @Override
     public void restoreState(CompoundTag tag) {
         restoreBaseState(tag);
@@ -1202,7 +1235,7 @@ public class ZombieEntity extends PvzceEntity {
         speedBoostTicks = tag.getInt("speedBoostTicks");
         movementMultiplier = tag.contains("MovementMultiplier") ? Math.max(0F, tag.getFloat("MovementMultiplier")) : 1F;
         grounded = !tag.contains("grounded") || tag.getInt("grounded") != 0;
-        corpseTicks = Math.max(0, Math.min(CORPSE_TICKS, tag.getInt("corpseTicks")));
+        corpseTicks = Math.max(0, Math.min(corpseLifetime(), tag.getInt("corpseTicks")));
 
         CompoundTag saved = tag.getCompound("capabilities");
         java.util.Map<Identifier,Integer> occurrences = new java.util.HashMap<>();

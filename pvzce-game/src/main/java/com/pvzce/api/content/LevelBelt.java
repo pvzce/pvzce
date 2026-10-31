@@ -131,17 +131,23 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
      * as a card.
      */
     public Identifier pick(Random random, java.util.function.ToIntFunction<Identifier> dealt) {
+        return pick(random, dealt, BeltCard::weight);
+    }
+
+    /** A level may adjust the authored weights from its live board without duplicating the draw. */
+    public Identifier pick(Random random, java.util.function.ToIntFunction<Identifier> dealt,
+                           java.util.function.ToIntFunction<BeltCard> weight) {
         java.util.List<BeltCard> available = available(dealt);
         int total = 0;
         for (BeltCard card : available) {
-            total += card.weight();
+            total += weight.applyAsInt(card);
         }
         if (total <= 0) {
             return null;
         }
         int roll = random.nextInt(total);
         for (BeltCard card : available) {
-            roll -= card.weight();
+            roll -= weight.applyAsInt(card);
             if (roll < 0) {
                 return card.card();
             }

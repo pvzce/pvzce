@@ -190,6 +190,7 @@ public final class FreezeAllCapability implements PlantCapability {
                 if (zombie.isRemoved()) {
                     continue;
                 }
+                zombie.onScreenFreeze(level);
                 if (damage > 0 && type != null) {
                     zombie.damage(damage, type, level);
                 }

@@ -90,6 +90,12 @@ public final class AnimationManager {
         }
         float lift = com.pvzce.client.renderer.EntityVisuals.anchorLift(entity.kind());
         float height = entity.visualHeight();
+        if (level != null && level.mechanicIds().contains(com.pvzce.common.PvzceIds.MECHANIC_ZOMBOSS)
+                && com.pvzce.client.renderer.ZombossArt.applies(entity)) {
+            // The rig stays beside the roof while its combat anchor follows the lowered head.
+            return new float[]{com.pvzce.common.PvzceConstants.ZOMBOSS_ANCHOR_X,
+                    com.pvzce.common.PvzceConstants.ZOMBOSS_ANCHOR_Y + height - lift};
+        }
         return new float[]{entity.visualCellX(),
                 entity.visualCellY() + height - lift + liquidDrop(entity)};
     }
@@ -384,6 +390,8 @@ public final class AnimationManager {
      */
     private static BoneArt boneArtFor(com.pvzce.client.ClientEntity entity,
                                       com.pvzce.client.animation.ControllerModel model) {
+        BoneArt boss = com.pvzce.client.renderer.ZombossArt.forEntity(entity);
+        if (boss != null) return boss;
         BoneArt zombie = com.pvzce.client.renderer.EquipmentArt.forEntity(entity, model);
         return zombie != null ? zombie
                 : com.pvzce.client.renderer.PlantDamageArt.forEntity(entity, model);

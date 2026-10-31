@@ -45,6 +45,12 @@ public final class ConveyorBelt {
      * unspent cards both count, which is why this is not "what is on the belt".
      */
     private final Map<Identifier, Integer> dealt = new HashMap<>();
+    private java.util.function.ToIntFunction<LevelBelt.BeltCard> weight = LevelBelt.BeltCard::weight;
+    private Identifier lastDealt;
+
+    public void setWeight(java.util.function.ToIntFunction<LevelBelt.BeltCard> weight) { this.weight = weight; }
+    public Identifier lastDealt() { return lastDealt; }
+
     private int nextId;
     private int ticksUntilNext;
     private boolean changed = true;
@@ -102,10 +108,11 @@ public final class ConveyorBelt {
     }
 
     private void produce(Random random) {
-        Identifier cardId = def.pick(random, card -> dealt.getOrDefault(card, 0));
+        Identifier cardId = def.pick(random, card -> dealt.getOrDefault(card, 0), weight);
         if (cardId == null) {
             return;
         }
+        lastDealt = cardId;
         dealt.merge(cardId, 1, Integer::sum);
         cards.add(new Card(nextId++, cardId));
         changed = true;
@@ -158,6 +165,7 @@ public final class ConveyorBelt {
     /** Belt contents belong to the run: leaving and resuming must not refill the queue. */
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
+        if (lastDealt != null) tag.putString("LastDealt", lastDealt.toString());
         tag.putInt("NextId", nextId);
         tag.putInt("TicksUntilNext", ticksUntilNext);
         ListTag list = new ListTag();
@@ -183,6 +191,7 @@ public final class ConveyorBelt {
 
     /** Restores a saved belt; unknown card ids are dropped rather than kept as blanks. */
     public void restore(CompoundTag tag) {
+        lastDealt = tag.contains("LastDealt") ? Identifier.parse(tag.getString("LastDealt")) : null;
         cards.clear();
         dealt.clear();
         nextId = Math.max(0, tag.getInt("NextId"));

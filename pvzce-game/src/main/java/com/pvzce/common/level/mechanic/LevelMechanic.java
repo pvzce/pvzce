@@ -123,6 +123,9 @@ public interface LevelMechanic<D extends MechanicData> {
     // Server hooks. All of them are optional; a mechanic overrides what it needs.
     // ------------------------------------------------------------------
 
+    /** This mechanic supplies victory instead of the ordinary cleared-wave condition. */
+    default boolean controlsVictory() { return false; }
+
     /** Runs once, when the level instance is constructed. */
     default void onLevelCreated(LevelServer level, D data) {
     }
