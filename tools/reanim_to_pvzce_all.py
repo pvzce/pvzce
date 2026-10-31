@@ -2001,12 +2001,15 @@ ENTITY_CONFIGS: List[EntityConfig] = [
         group="zombie/boss",
         reanim="Zombie_boss.reanim",
         damage_states={
+            "eyeglow_red": (("eyeglow_blue", "Zombie_boss_eyeglow_blue.png"),),
+            "mouthglow_red": (("mouthglow_blue", "Zombie_boss_mouthglow_blue.png"),),
+        } | {
             host: tuple((host + f"_damage{i}", f"Zombie_boss_{sprite}_damage{i}.png") for i in (1, 2))
             for host, sprite in [("head", "head"), ("jaw", "jaw"), ("foot", "foot"),
                                  ("outerarm_hand", "outerarm_hand")]
         },
         # The complete machine spans the roof, anchored beside its bottom row.
-        target_box=(4.5, 6.0),
+        target_box=(4.5, 8.18),
         fit_height_only=True,
         animations={
             "idle": {"mask": "anim_idle", "loop": True},
@@ -2019,8 +2022,8 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             "boss_bungee_leave": {"mask": "anim_bungee_1_leave", "loop": False, "on_end": "hold"},
             "boss_rv": {"mask": "anim_RV_1", "loop": False, "on_end": "hold",
                         "force_hidden": r"^rv(wheel.*)?$"},
-            "death": {"mask": "anim_death", "loop": False, "on_end": "hold"},
-            "death_burned": {"mask": "anim_death", "loop": False, "on_end": "hold"},
+            "death": {"mask": "anim_death", "loop": False, "on_end": "hold", "rate": 2.0},
+            "death_burned": {"mask": "anim_death", "loop": False, "on_end": "hold", "rate": 2.0},
         } | {
             f"boss_spawn_{row}": {"mask": f"anim_spawn_{row}", "loop": False, "on_end": "hold"}
             for row in range(1, 6)
@@ -2032,6 +2035,19 @@ ENTITY_CONFIGS: List[EntityConfig] = [
             for row in range(1, 6)
         },
     ),
+    *[EntityConfig(
+        output="zomboss_" + element + "ball",
+        group="zombie/boss",
+        reanim="Zombie_boss_" + element + "ball.reanim",
+        target_box=(2.32, 2.32),
+        measure_exclude_regex=r"shadow|glow|highlight|hilight|multiply|overlay|crystal|chunks|grow|black|additive",
+        additive_images=r"ADDITIVE|SUPERGLOW|HIGHLIGHT|SUPERHILIGHT",
+        animations={
+            "idle": {"mask": "anim_role", "loop": True, "rate": 2.0 / 12.0, "transition": 0.0},
+            "form": {"mask": "anim_form", "loop": False, "rate": 16.0 / 12.0,
+                     "on_end": "hold", "transition": 0.0},
+        },
+    ) for element in ("fire", "ice")],
     # ------------------------------------------------------------------
     # Tools
     #
@@ -3410,6 +3426,17 @@ def process_entity(
     controller = build_controller_json(config, bones, tracks, fps, bbox, scale, drawn, attached_bones,
                                        extra_bone_offsets)
 
+    if config.output in {"zomboss_fireball", "zomboss_iceball"}:
+        # Rotating square bounds include transparent corners. Ground the visible ball on
+        # its authored contact shadow, rather than on the bottom of that bounding box.
+        idle = controller["animations"]["idle"]["bones"]
+        anchor = next(iter(idle["zombie_boss_icefire_shadow"]["translation"].values()))
+        for clip in controller["animations"].values():
+            for channels in clip["bones"].values():
+                for key, position in channels.get("translation", {}).items():
+                    channels["translation"][key] = [core.round_float(position[0] - anchor[0]),
+                                                    core.round_float(position[1] - anchor[1])]
+
     json_path = (resources_dir / "assets" / DEFAULT_NAMESPACE / "animations"
                  / config.group / f"{config.output}.json")
     textures_dir = (resources_dir / "assets" / DEFAULT_NAMESPACE / "textures" / "entities"
@@ -3514,7 +3541,10 @@ def copy_fog_item_sprites(resources: Path, wanted: Optional[Set[str]]) -> None:
     sprites = {
         "cactus": [("im7/images/ProjectileCactus.png", "projectile/cactus_spike.png")],
         "zombie_boss": [("anim/Zombie_boss_fireball.png", "zombie/boss/ball/fire.png"),
-                        ("anim/Zombie_boss_iceball.png", "zombie/boss/ball/ice.png")],
+                        ("anim/Zombie_boss_iceball.png", "zombie/boss/ball/ice.png"),
+                        ("anim/Zombie_boss_fireball_black.png", "zombie/boss/ball/fire_trail.png"),
+                        ("anim/Zombie_boss_iceball_overlay.png", "zombie/boss/ball/ice_trail.png"),
+                        ("im7/particles/Zombie_boss_fireball_additiveparticle.png", "zombie/boss/ball/fire_spit.png")],
         "cob_cannon": [("im7/images/CobCannon_target.png", "status/cob_target.png"),
                        ("im7/images/CobCannon_target_shadow.png", "status/cob_target_shadow.png")],
         "starfruit": [("im7/images/Projectile_star.png", "projectile/star.png")],
@@ -3529,6 +3559,12 @@ def copy_fog_item_sprites(resources: Path, wanted: Optional[Set[str]]) -> None:
         music = resources / "assets/pvzce/sounds/music/brainiac_maniac.ogg"
         music.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / "refer/ms0/brainiac_maniac.ogg", music)
+    if wanted is None or "zombie_boss" in wanted:
+        from PIL import Image
+        cloud = Image.open(REPO_ROOT / "refer/im7/particles/Zombie_boss_iceball_particles.png")
+        output = resources / "assets/pvzce/textures/entities/zombie/boss/ball/ice_spit.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        cloud.crop((0, 0, cloud.width // 4, cloud.height)).save(output)
     for entity, entries in sprites.items():
         if wanted is not None and entity not in wanted:
             continue

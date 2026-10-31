@@ -14,24 +14,43 @@ public final class PvzceConstants {
     public static final int ZOMBOSS_CLOCK_VARIATION = 600, ZOMBOSS_SPAWN_VARIATION = 60;
     public static final int ZOMBOSS_SPAWN_HURT_INTERVAL = 240, ZOMBOSS_SPAWN_DAMAGED_INTERVAL = 120;
     public static final float ZOMBOSS_FIRST_DAMAGE = 0.8F, ZOMBOSS_SECOND_DAMAGE = 0.5F;
-    public static final int ZOMBOSS_ENTER_TICKS = 195, ZOMBOSS_DEATH_TICKS = 540;
+    public static final int ZOMBOSS_ENTER_TICKS = 195, ZOMBOSS_DEATH_TICKS = 270;
     public static final int ZOMBOSS_SPAWN_TICKS = 105, ZOMBOSS_STOMP_TICKS = 150, ZOMBOSS_RV_TICKS = 190;
     public static final int ZOMBOSS_BUNGEE_TICKS = 120, ZOMBOSS_BUNGEE_LEAVE_TICKS = 80;
     public static final int ZOMBOSS_HEAD_ENTER_TICKS = 285, ZOMBOSS_HEAD_LEAVE_TICKS = 225;
     public static final int ZOMBOSS_HEAD_BEFORE_TICKS = 300, ZOMBOSS_HEAD_AFTER_TICKS = 180;
     public static final int ZOMBOSS_SPIT_TICKS = 210;
     public static final int ZOMBOSS_STOMP_INTERVAL = 3300, ZOMBOSS_BUNGEE_INTERVAL = 2400;
+    /** The first column a stomp crushes; it reaches the right edge of the roof. */
+    public static final int ZOMBOSS_STOMP_COLUMN = 5;
     public static final int ZOMBOSS_BUNGEE_COUNT = 3;
     public static final int ZOMBOSS_NORMAL_UNTIL = 2100, ZOMBOSS_CONE_UNTIL = 4800, ZOMBOSS_BUCKET_UNTIL = 7500;
-    public static final float ZOMBOSS_ANCHOR_X = 8.5F, ZOMBOSS_ANCHOR_Y = 0.5F;
-    public static final float ZOMBOSS_HEAD_X = 6.55F, ZOMBOSS_HEAD_Y = 2F;
+    public static final float ZOMBOSS_ANCHOR_X = 10.15F, ZOMBOSS_ANCHOR_Y = 1.15F;
+    public static final float ZOMBOSS_HEAD_X = 8.2F, ZOMBOSS_HEAD_Y = 2F;
     public static final float ZOMBOSS_SUMMON_X = 7.5F;
     public static final float ZOMBOSS_BALL_SPEED = 0.9F, ZOMBOSS_BALL_RADIUS = 0.55F;
     public static final float ZOMBOSS_RV_CONTACT_FRACTION = 0.65F;
     public static final float ZOMBOSS_RV_RENDER_WIDTH = 3.4F, ZOMBOSS_RV_RENDER_HEIGHT = 1.55F;
     public static final float ZOMBOSS_RV_WHEEL_SIZE = 0.5F;
     public static final float ZOMBOSS_BALL_RENDER_SIZE = 1.65F;
+    public static final int ZOMBOSS_BALL_FORM_TICKS = 60;
+    public static final int ZOMBOSS_BALL_TRAIL_TICKS = 6;
+    public static final int ZOMBOSS_BELT_OPENING_TICKS = 600;
+    public static final int ZOMBOSS_BELT_FAST_TICKS = 210, ZOMBOSS_BELT_MEDIUM_TICKS = 223;
+    public static final int ZOMBOSS_BELT_SLOW_TICKS = 262, ZOMBOSS_BELT_CROWDED_TICKS = 525;
+    public static final int ZOMBOSS_POT_WEIGHT_LIMIT = 35, ZOMBOSS_RV_POT_WEIGHT = 500;
+    public static final int ZOMBOSS_BUNGEE_TRAVEL_TICKS = 80;
+    public static final float ZOMBOSS_BUNGEE_HAND_X = 3.13F, ZOMBOSS_BUNGEE_HAND_Y = 5.07F;
+    public static final java.util.List<Float> ZOMBOSS_BUNGEE_HAND_OFFSETS_X = java.util.List.of(0F, -1.91F, -0.975F);
+    public static final java.util.List<Float> ZOMBOSS_BUNGEE_HAND_OFFSETS_Y = java.util.List.of(0F, 0.68F, -0.005F);
     public static final int ZOMBOSS_SYNC_TICKS = 3;
+    // A machine flown by the zombie player (human versus): each move recharges on its own clock,
+    // and the head has three - a recharge before it may be lowered, a minimum time down, and the
+    // longest it may stay up before it is forced down.
+    public static final int ZOMBOSS_PILOT_STOMP_COOLDOWN_TICKS = 1800, ZOMBOSS_PILOT_RV_COOLDOWN_TICKS = 3600;
+    public static final int ZOMBOSS_PILOT_BUNGEE_COOLDOWN_TICKS = 2700;
+    public static final int ZOMBOSS_PILOT_HEAD_COOLDOWN_TICKS = 1200, ZOMBOSS_PILOT_HEAD_HOLD_TICKS = 900;
+    public static final int ZOMBOSS_PILOT_HEAD_FORCED_TICKS = 2700;
     public static final float LIGHT_DAY_AMBIENT = 0.44F;
     public static final float LIGHT_DAY_DIRECT = 0.92F;
     public static final float LIGHT_NIGHT_AMBIENT = 0.62F;

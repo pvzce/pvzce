@@ -14,6 +14,7 @@ import com.pvzce.client.gui.components.Dialog;
 import com.pvzce.client.gui.components.DialogueOverlay;
 import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.client.gui.hud.cardbar.CardBarLayout;
+import com.pvzce.client.mechanic.ZombossClientMechanic;
 import com.pvzce.client.input.ScrollRegion;
 import com.pvzce.client.renderer.RenderSystem;
 import com.pvzce.client.renderer.ClientPlacement;
@@ -25,6 +26,7 @@ import com.pvzce.common.PvzceConstants;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.core.SlotResolver;
 import com.pvzce.common.level.SceneBoard;
+import com.pvzce.common.level.mechanic.ZombossMechanic.PilotMove;
 import com.pvzce.common.network.packet.CollectResourceC2S;
 import com.pvzce.common.network.packet.EffectEventS2C;
 import com.pvzce.common.network.packet.LevelRewardS2C;
@@ -34,6 +36,7 @@ import com.pvzce.common.network.packet.PlacePlantC2S;
 import com.pvzce.common.network.packet.SetGameSpeedC2S;
 import com.pvzce.common.network.packet.SlotInfo;
 import com.pvzce.common.network.packet.UseToolC2S;
+import com.pvzce.common.network.packet.ZombossCommandC2S;
 import com.pvzce.common.util.MathUtil;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -359,6 +362,8 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
      */
     private int aimingPlantId = -1;
     private int aimingOutpost = -1;
+    /** The boss pilot's aimed move waiting for its cell, or {@code null}; the same client-only mode. */
+    private PilotMove aimingBossMove;
     /**
      * The content id to put back in hand once the bar has been rebuilt, or {@code null}.
      *
@@ -3546,9 +3551,9 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
 
     private void renderWaveBar() {
         int total = client.level().totalWaves();
-        if (total <= 0) {
-            return;
-        }
+        var boss = client.level().mechanicStateOrNull(com.pvzce.common.PvzceIds.MECHANIC_ZOMBOSS,
+                com.pvzce.common.level.mechanic.ZombossMechanic.Status.class);
+        if (total <= 0 && boss == null) return;
         // Rounds are drawn on their own line rather than folded into the meter: the meter's
         // numbers are already the wave inside the current round (see WaveProgressS2C), so the
         // round is the one thing it cannot say for itself.
@@ -3562,11 +3567,12 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             progress = 1F;
         }
 
+        if (boss != null) progress = 1F - Math.max(0, boss.health()) / (float) boss.maxHealth();
         int guiW = client.guiWidth();
         float scale = METER_SCALE;
         int meterHeight = Math.round(METER_NATIVE_HEIGHT * scale);
         int meterWidth = Math.round(METER_NATIVE_WIDTH * scale);
-        int headWidth = Math.round(PARTS_HEAD[2] * scale);
+        int headWidth = boss == null ? Math.round(PARTS_HEAD[2] * scale) : 0;
         int plateHeight = Math.round(11F * scale);
         int plateY = 6;
         // Butted: the plate's top row is the bar's bottom row. The two are one gauge, and a
@@ -3586,7 +3592,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
         // the measurement that found it).
         int perFlag = (int) Math.max(6F, 10F * scale);
         int capacity = Math.min(MAX_WAVE_FLAGS, Math.max(1, meterWidth / perFlag));
-        for (int i : com.pvzce.client.ClientLevel.waveFlagCandidates(total, current, capacity)) {
+        for (int i : boss == null ? com.pvzce.client.ClientLevel.waveFlagCandidates(total, current, capacity) : new int[0]) {
             if (!client.level().isHugeWave(i)) {
                 continue;
             }
@@ -3595,7 +3601,7 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                     scale * (client.level().isFinalWave(i) ? 1.15F : 1F), i < current ? 1F : 0F);
         }
         // The head last, so it reads as standing in front of the flags it has reached.
-        drawMeterHead(trackX + trackWidth * (1F - progress), meterY, meterHeight, scale);
+        if (boss == null) drawMeterHead(trackX + trackWidth * (1F - progress), meterY, meterHeight, scale);
         drawMeterLabel(trackX, trackWidth, meterY, meterHeight, plateY, plateHeight);
     }
 
@@ -4003,6 +4009,11 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
                 aimingOutpost = point;
                 return;
             }
+            PilotMove move = ZombossClientMechanic.clickedMove(client, guiX, guiY);
+            if (move != null) {
+                pressBossMove(move);
+                return;
+            }
         }
         if (startWavesButton != null && startWavesButton.isVisible()
                 && startWavesButton.isMouseOver(guiX, guiY)) {
@@ -4120,11 +4131,16 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
             }
             // Right-click gives up an aim before it gives up a card: while aiming, the card bar is
             // not what the player is thinking about. (The original cancels a cob shot the same way.)
-            if (aimingPlantId >= 0) {
+            if (aimingPlantId >= 0 || aimingBossMove != null) {
                 cancelAiming();
                 return;
             }
             cancelSelection();
+            return;
+        }
+        if (aimingBossMove != null) {
+            client.connection().send(new ZombossCommandC2S(aimingBossMove.id(), cellX, cellY));
+            aimingBossMove = null;
             return;
         }
         if (aimingOutpost >= 0) {
@@ -4266,17 +4282,46 @@ public final class InGameScreen extends Screen implements com.pvzce.client.gui.h
     private void cancelAiming() {
         aimingPlantId = -1;
         aimingOutpost = -1;
+        aimingBossMove = null;
+    }
+
+    /**
+     * A press on one of the boss pilot's buttons. The head's two moves are sent at once; an aimed move
+     * waits for the cell, and pressing it again puts it down. A move the machine would refuse says why
+     * here instead of arming an aim that cannot fire.
+     */
+    private void pressBossMove(PilotMove move) {
+        boolean again = move == aimingBossMove;
+        cancelSelection();
+        if (again) {
+            return;
+        }
+        String refusal = ZombossClientMechanic.refusal(client, move);
+        if (refusal != null) {
+            hints.refuse(GuiLang.raw(refusal, refusal));
+            return;
+        }
+        if (!move.aimed()) {
+            client.connection().send(new ZombossCommandC2S(move.id(), 0, 0));
+            return;
+        }
+        aimingBossMove = move;
+        hints.refuse(GuiLang.raw("gui.pvzce.zomboss.aim." + move.id(), "Click the lawn to aim; right-click cancels"));
     }
 
     /** Draws the original target and its shadow at the selected surface height. */
     private void renderAimReticle() {
-        if (aimingPlantId < 0 && aimingOutpost < 0) {
+        if (aimingPlantId < 0 && aimingOutpost < 0 && aimingBossMove == null) {
             return;
         }
         int hoverX = client.camera().cellX(client.window().cursorX(), client.window().cursorY());
         int hoverY = client.camera().cellY(client.window().cursorX(), client.window().cursorY());
         if (hoverX < 0 || hoverY < 0
                 || hoverX >= client.level().width() || hoverY >= client.level().height()) {
+            return;
+        }
+        if (aimingBossMove != null) {
+            ZombossClientMechanic.renderAim(client, aimingBossMove, hoverX, hoverY);
             return;
         }
         float centerX = hoverX + 0.5F;

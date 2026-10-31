@@ -6,8 +6,12 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.pvzce.api.content.mechanic.FieldSpec;
 import com.pvzce.api.content.mechanic.MechanicData;
 import com.pvzce.api.util.Identifier;
-
+import com.pvzce.common.PvzceIds;
+import com.pvzce.common.core.Slot;
+import com.pvzce.common.core.SlotResolver;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 对战: everything one level has to say about a human playing against a Jev-driven opponent.
@@ -44,6 +48,11 @@ import java.util.List;
  * is supposed to be racing for; {@link #validate} says so rather than letting it be discovered
  * twenty minutes into a match.
  *
+ * <p><b>A side may deal from a belt instead.</b> {@link #plantBelt} / {@link #zombieBelt} replace that
+ * side's deck with a conveyor belt: free cards on a clock, no prices, no cooldowns. The side's card
+ * list then only holds what the belt does not deal (the plant side's shovel). The built-in opponent
+ * plays a deck, so a level with a belt side is a match between two people ({@link #needsTwoPlayers}).
+ *
  * @param sunGoal           the sun the plant side must collect to win, or {@link #NO_GOAL} for a
  *                          level that only ends when somebody breaks through
  * @param plantInitialSun   the sun the plant side starts with, whoever plays it
@@ -57,6 +66,8 @@ import java.util.List;
  * @param decisionTicks     how often the opponent is asked what to do next
  * @param plantCards        the plant side's bar, in card order
  * @param zombieCards       the zombie side's bar, in card order
+ * @param plantBelt         the belt the plant side deals from instead of a deck, if any
+ * @param zombieBelt        the belt the zombie side deals from instead of a deck, if any
  */
 public record VersusData(
         int sunGoal,
@@ -69,7 +80,9 @@ public record VersusData(
         int plantAiInitialSunPercent,
         int plantAiIncomePercent,
         List<Identifier> plantCards,
-        List<Identifier> zombieCards) implements MechanicData {
+        List<Identifier> zombieCards,
+        Optional<LevelBelt> plantBelt,
+        Optional<LevelBelt> zombieBelt) implements MechanicData {
 
     /** {@link #sunGoal} for a level whose plant side has no sun total to reach. */
     public static final int NO_GOAL = 0;
@@ -126,7 +139,9 @@ public record VersusData(
             Identifier.CODEC.listOf().optionalFieldOf("plant_cards", List.of())
                     .forGetter(VersusData::plantCards),
             Identifier.CODEC.listOf().optionalFieldOf("zombie_cards", List.of())
-                    .forGetter(VersusData::zombieCards)
+                    .forGetter(VersusData::zombieCards),
+            LevelBelt.CODEC.optionalFieldOf("plant_belt").forGetter(VersusData::plantBelt),
+            LevelBelt.CODEC.optionalFieldOf("zombie_belt").forGetter(VersusData::zombieBelt)
     ).apply(i, VersusData::new));
 
     public static final Codec<VersusData> CODEC = MAP_CODEC.codec();
@@ -138,7 +153,23 @@ public record VersusData(
 
     /** The deck one side plays, by the side's team id. */
     public List<Identifier> cardsFor(Identifier team) {
-        return com.pvzce.common.PvzceIds.ZOMBIE_TEAM.equals(team) ? zombieCards : plantCards;
+        return PvzceIds.ZOMBIE_TEAM.equals(team) ? zombieCards : plantCards;
+    }
+
+    /** The belt one side deals from, by the side's team id; empty for a side that plays a deck. */
+    public Optional<LevelBelt> beltFor(Identifier team) {
+        return PvzceIds.ZOMBIE_TEAM.equals(team) ? zombieBelt : plantBelt;
+    }
+
+    /**
+     * True when this match can only be played by two people.
+     *
+     * <p>Derived rather than declared: Jev and the built-in policy choose from a deck they hold, and a
+     * belt is a queue the level hands out, so a side that deals from one has nobody to play it but a
+     * person.
+     */
+    public boolean needsTwoPlayers() {
+        return plantBelt.isPresent() || zombieBelt.isPresent();
     }
 
     /** True when the plant side is racing a sun total rather than only holding the lawn. */
@@ -182,7 +213,7 @@ public record VersusData(
      * condition is counted in, and nothing else in the game reports it.
      */
     public List<String> validate() {
-        List<String> errors = new java.util.ArrayList<>();
+        List<String> errors = new ArrayList<>();
         if (sunGoal < 0) {
             errors.add("versus has a negative sun_goal (" + sunGoal + ")");
         }
@@ -204,10 +235,13 @@ public record VersusData(
             errors.add("versus asks for a decision every " + decisionTicks
                     + " ticks; under a third of a second is not a decision interval");
         }
-        if (plantCards.isEmpty() || zombieCards.isEmpty()) {
-            errors.add("versus needs both decks: plant_cards=" + plantCards.size()
-                    + ", zombie_cards=" + zombieCards.size());
+        if (plantCards.isEmpty() && plantBelt.isEmpty() || zombieCards.isEmpty() && zombieBelt.isEmpty()) {
+            errors.add("versus needs a deck or a belt for each side: plant_cards=" + plantCards.size()
+                    + ", plant_belt=" + plantBelt.isPresent() + ", zombie_cards=" + zombieCards.size()
+                    + ", zombie_belt=" + zombieBelt.isPresent());
         }
+        plantBelt.ifPresent(belt -> errors.addAll(beltProblems("plant_belt", belt, false)));
+        zombieBelt.ifPresent(belt -> errors.addAll(beltProblems("zombie_belt", belt, true)));
         for (Identifier card : plantCards) {
             if (!isPlantSideCard(card)) {
                 errors.add("versus lists '" + card + "' as a plant card, but it is not the plant side's");
@@ -218,32 +252,44 @@ public record VersusData(
                 errors.add("versus lists '" + card + "' as a zombie card, but it is not the zombie side's");
             }
         }
-        if (!plantCards.isEmpty() && !hasSunCard(plantCards)) {
+        if (races() && !hasSunCard(plantCards)) {
             errors.add("versus gives the plant side no pvzce:sun card, so it can never collect the "
                     + "sun its own win condition counts");
         }
         return errors;
     }
 
+    /** A belt's own authoring problems, plus any card it deals to the wrong side. */
+    private static List<String> beltProblems(String field, LevelBelt belt, boolean zombieSide) {
+        List<String> errors = new ArrayList<>();
+        for (String problem : belt.validate()) {
+            errors.add("versus " + field + ": " + problem);
+        }
+        for (LevelBelt.BeltCard card : belt.cards()) {
+            if (zombieSide != isZombieSideCard(card.card())) {
+                errors.add("versus " + field + " deals '" + card.card() + "', which is not a "
+                        + (zombieSide ? "zombie" : "plant side") + " card");
+            }
+        }
+        return errors;
+    }
+
     /** True when this id resolves to a card the plant side may hold. */
     public static boolean isPlantSideCard(Identifier card) {
-        com.pvzce.common.core.SlotResolver.ResolvedCard resolved =
-                com.pvzce.common.core.SlotResolver.resolve(card).orElse(null);
-        return resolved == null || resolved.kind() != com.pvzce.common.core.Slot.Kind.ZOMBIE;
+        SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
+        return resolved == null || resolved.kind() != Slot.Kind.ZOMBIE;
     }
 
     /** True when this id resolves to a zombie card. */
     public static boolean isZombieSideCard(Identifier card) {
-        com.pvzce.common.core.SlotResolver.ResolvedCard resolved =
-                com.pvzce.common.core.SlotResolver.resolve(card).orElse(null);
-        return resolved != null && resolved.kind() == com.pvzce.common.core.Slot.Kind.ZOMBIE;
+        SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
+        return resolved != null && resolved.kind() == Slot.Kind.ZOMBIE;
     }
 
     private static boolean hasSunCard(List<Identifier> cards) {
         for (Identifier card : cards) {
-            com.pvzce.common.core.SlotResolver.ResolvedCard resolved =
-                    com.pvzce.common.core.SlotResolver.resolve(card).orElse(null);
-            if (resolved != null && com.pvzce.common.PvzceIds.SUN.equals(resolved.content())) {
+            SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
+            if (resolved != null && PvzceIds.SUN.equals(resolved.content())) {
                 return true;
             }
         }

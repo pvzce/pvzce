@@ -1,0 +1,32 @@
+{
+  "id": "pvzce:zomboss_fire_embers",
+  "look": {
+    "texture": "pvzce:textures/entities/zombie/boss/ball/fire_spit",
+    "scale": 0.13,
+    "scale_spread": 0.052000000000000005,
+    "life": 0.6,
+    "alpha_from": 0.9,
+    "alpha_to": 0,
+    "scale_curve": [
+      [
+        0,
+        0.3
+      ],
+      [
+        0.2,
+        1
+      ],
+      [
+        1,
+        1.3
+      ]
+    ]
+  },
+  "motion": {
+    "speed": 0.25,
+    "angle": 90,
+    "angle_spread": 90
+  },
+  "additive": true,
+  "count": 2
+}

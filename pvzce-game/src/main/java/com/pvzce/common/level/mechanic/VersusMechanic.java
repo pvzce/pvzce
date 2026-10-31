@@ -1,6 +1,7 @@
 package com.pvzce.common.level.mechanic;
 
 import com.mojang.serialization.MapCodec;
+import com.pvzce.api.content.LevelBelt;
 import com.pvzce.api.content.LevelDef;
 import com.pvzce.api.content.PlantDef;
 import com.pvzce.api.content.VersusData;
@@ -69,6 +70,8 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
         }
         errors.addAll(unknownCards(data.plantCards(), "plant card"));
         errors.addAll(unknownCards(data.zombieCards(), "zombie card"));
+        data.plantBelt().ifPresent(belt -> errors.addAll(unknownCards(beltCards(belt), "plant belt card")));
+        data.zombieBelt().ifPresent(belt -> errors.addAll(unknownCards(beltCards(belt), "zombie belt card")));
         for (Identifier card : data.plantCards()) {
             if (isZombieCard(card)) {
                 errors.add("versus lists '" + card + "' among the plant cards, but it is a zombie card");
@@ -90,6 +93,10 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
     public static boolean isZombieCard(Identifier card) {
         SlotResolver.ResolvedCard resolved = SlotResolver.resolve(card).orElse(null);
         return resolved != null && resolved.kind() == com.pvzce.common.core.Slot.Kind.ZOMBIE;
+    }
+
+    private static List<Identifier> beltCards(LevelBelt belt) {
+        return belt.cards().stream().map(LevelBelt.BeltCard::card).toList();
     }
 
     private static List<String> unknownCards(List<Identifier> cards, String what) {
@@ -176,6 +183,10 @@ public final class VersusMechanic implements LevelMechanic<VersusData> {
                 run.sentCollected = run.collected;
                 sendState(level, data, null);
             }
+            return;
+        }
+        if (data.needsTwoPlayers()) {
+            // Nobody plays the other side: the built-in opponent cannot deal from a belt.
             return;
         }
         level.jevBrain().tick(level, data);

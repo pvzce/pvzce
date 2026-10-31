@@ -42,6 +42,7 @@ import com.pvzce.common.level.mechanic.StagesMechanic;
 import com.pvzce.common.level.mechanic.SurfaceLinksMechanic;
 import com.pvzce.common.level.mechanic.ToolMechanic;
 import com.pvzce.common.level.mechanic.WavePacingMechanic;
+import com.pvzce.common.level.mechanic.ZombossMechanic;
 import com.pvzce.common.nbt.CompoundTag;
 import com.pvzce.common.nbt.IntTag;
 import com.pvzce.common.nbt.ListTag;
@@ -79,6 +80,8 @@ import com.pvzce.server.entity.ZombieEntity;
 import com.pvzce.server.env.LevelEnvVars;
 import com.pvzce.server.gamerule.GameRules;
 import com.pvzce.server.gamerule.PvzceClock;
+import com.pvzce.server.level.cardsource.BeltCardSource;
+import com.pvzce.server.level.cardsource.CardSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
@@ -248,6 +251,18 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
      * the branches are now the implementation's own behaviour.
      */
     private com.pvzce.server.level.cardsource.CardSource cardSource;
+    /**
+     * The belts a versus level deals its sides from, by team; empty on every other level.
+     *
+     * <p>Built with the level rather than when a seat arrives, because a belt is the side's and not
+     * the seat's: its clock and its first cards exist before anyone sits down (the boss fight tunes the
+     * plant belt while the level is created), and every seat of that side plays the same queue. The
+     * host's seat takes its side's entry as its own bar; a guest takes the other one.
+     */
+    private final Map<Identifier, SideBelt> versusBelts;
+
+    /** One side's belt and the bar it projects onto. */
+    private record SideBelt(PvzcePlayer player, BeltCardSource source) { }
     /**
      * The mutations this level runs with, or {@code null} for an ordinary level.
      *
@@ -685,10 +700,17 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         // belongs to.
         this.plantPlayer = human != null ? new PvzcePlayer(human) : null;
         this.selectedCards = List.copyOf(selectedSlotsOrDef(selectedSlots));
-        this.cardSource = this.plantPlayer != null
-                ? LevelMechanics.createCardSource(def, new com.pvzce.server.level.cardsource.CardSource.Context(
-                        this.plantPlayer, def, this.selectedCards, random, this))
-                : null;
+        this.versusBelts = createVersusBelts(def);
+        SideBelt ownBelt = versusBelts.get(this.humanTeamId);
+        if (ownBelt != null) {
+            this.plantPlayer = ownBelt.player();
+            this.cardSource = ownBelt.source();
+        } else {
+            this.cardSource = this.plantPlayer != null
+                    ? LevelMechanics.createCardSource(def, new CardSource.Context(
+                            this.plantPlayer, def, this.selectedCards, random, this))
+                    : null;
+        }
         // The opponent's own bar, if this level has one: the versus mode hands the AI a deck, and a
         // deck without a bar is a deck without cooldowns - which is exactly how the opponent came to
         // ignore them. Built here beside the human's so both bars are made the same way, and ticked
@@ -1123,6 +1145,45 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     /** The opponent's card bar, or {@code null} when this level has no second deck. */
     public PvzcePlayer opponentPlayer() {
         return opponentPlayer;
+    }
+
+    /**
+     * Builds a belt for every side the versus block deals from one; see {@link #versusBelts}.
+     */
+    private Map<Identifier, SideBelt> createVersusBelts(LevelDef def) {
+        com.pvzce.api.content.VersusData versus = LevelMechanics.versusData(def).orElse(null);
+        if (versus == null) {
+            return Map.of();
+        }
+        Map<Identifier, SideBelt> belts = new HashMap<>();
+        for (Identifier side : List.of(PvzceIds.PLANT_TEAM, PvzceIds.ZOMBIE_TEAM)) {
+            Team team = teams.get(side);
+            com.pvzce.api.content.LevelBelt belt = versus.beltFor(side).orElse(null);
+            if (team == null || belt == null) {
+                continue;
+            }
+            // The side's card list is what the belt does not deal (the plant side's shovel); it sits
+            // on the bar beside the belt, as a conveyor level's own `slots` does.
+            PvzcePlayer player = new PvzcePlayer(team);
+            belts.put(side, new SideBelt(player, new BeltCardSource(
+                    new CardSource.Context(player, def, versus.cardsFor(side), random, this),
+                    belt.withPlayerCapacity(seedSlotCount()))));
+        }
+        return Map.copyOf(belts);
+    }
+
+    /**
+     * The belt one side deals from, or {@code null} when that side plays a deck.
+     *
+     * <p>A versus side's own belt first; otherwise the bar of the seat being served, when it belongs to
+     * that side and is a belt - the conveyor of an ordinary belt level, shared by every seat on it.
+     */
+    public BeltCardSource beltOf(Identifier team) {
+        SideBelt side = versusBelts.get(team);
+        if (side != null) {
+            return side.source();
+        }
+        return team.equals(humanTeamId) && cardSource instanceof BeltCardSource belt ? belt : null;
     }
 
     /**
@@ -2915,6 +2976,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         if (participants.containsKey(id)) return;
         Team target = teams.get(team);
         if (target == null) throw new IllegalArgumentException("Unknown participant team " + team);
+        SideBelt side = versusBelts.get(team);
+        if (side != null) {
+            participants.put(id, new Participant(side.player(), side.source(), List.copyOf(cards), team,
+                    -1, -1L, null, 0, -1));
+            return;
+        }
         PvzcePlayer player = new PvzcePlayer(target);
         var source = cardSource.dealsItsOwnCards() && team.equals(humanTeamId) ? cardSource
                 : new com.pvzce.server.level.cardsource.DeckCardSource(
@@ -2932,7 +2999,8 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
         parkedHost = previous;
         if (p.team().equals(previous.team()) && previous.source().dealsItsOwnCards())
             p = new Participant(previous.player(), previous.source(), p.cards(), p.team(), p.plant(), p.vase(), p.vaseCard(), p.timeout(), p.held());
-        else if (p.source().dealsItsOwnCards() && !previous.source().dealsItsOwnCards()) {
+        else if (p.team().equals(previous.team()) && p.source().dealsItsOwnCards()
+                && !previous.source().dealsItsOwnCards()) {
             PvzcePlayer own = new PvzcePlayer(teams.get(p.team()));
             var source = new com.pvzce.server.level.cardsource.DeckCardSource(
                     new com.pvzce.server.level.cardsource.CardSource.Context(own, def, p.cards(), random, this));
@@ -2957,7 +3025,9 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public void tickParticipant(String id, ServerBridge target) {
         asParticipant(id, target, () -> {
             tickCarry();
-            if (!cardSource.dealsItsOwnCards()) cardSource.tick(this, target, tickCount);
+            // A bar shared with the host is ticked by the level's own tick; a second tick here would
+            // run its clock twice. Any other bar - a seat's deck, the other side's belt - is the seat's.
+            if (cardSource != parkedHost.source()) cardSource.tick(this, target, tickCount);
         });
     }
 
@@ -3317,6 +3387,12 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
     public boolean fireOutpost(ServerBridge target, int point, int x, int y, String surface) {
         return gameState.equals(GameStateS2C.RUNNING) && PvzceIds.PLANT_TEAM.equals(humanTeamId)
                 && withBridge(target, () -> OutpostsMechanic.fire(this, point, x, y, surface));
+    }
+
+    /** A move from the player flying the boss; see {@code ZombossMechanic.command}. */
+    public boolean commandZomboss(ServerBridge target, String action, int x, int y) {
+        return gameState.equals(GameStateS2C.RUNNING)
+                && withBridge(target, () -> ZombossMechanic.command(this, action, x, y));
     }
 
     /** Recharges the opponent's cards. Silent: no client is watching the AI's bar. */
@@ -5368,28 +5444,44 @@ public final class LevelServer implements LevelAccess, WaveDirector.Host {
             bridge.send(new ServerMessageS2C("gui.pvzce.versus.zombie_zone"));
             return false;
         }
-        // The same charge the opponent's decisions pay, so "a card recharges after it is played" is
-        // one rule rather than one rule per caller.
-        String refusal = chargeCard(plantPlayer.team(), slot);
-        if (refusal != null) {
-            bridge.send(new ServerMessageS2C(refusal));
-            return false;
+        // A belt hands the card over: it leaves the belt and costs nothing. A deck pays the same
+        // charge the opponent's decisions pay, so "a card recharges after it is played" is one rule
+        // rather than one rule per caller.
+        boolean dealt = cardSource.dealsItsOwnCards();
+        if (dealt) {
+            if (!cardSource.spend(this, bridge, slot, null)) {
+                return false;
+            }
+        } else {
+            String refusal = chargeCard(plantPlayer.team(), slot);
+            if (refusal != null) {
+                bridge.send(new ServerMessageS2C(refusal));
+                return false;
+            }
         }
         int cost = slot.costSun();
         ZombieEntity spawned = spawnZombie(slot.defId(), plantPlayer.team(), x + 0.5F, y, 1F, surface);
         if (spawned == null) {
             // Give the sun *and the card* back: the cell was refused somewhere the player cannot see,
             // and a card that costs sun, a cooldown and produces nothing is a bug report.
-            if (cost > 0) {
-                plantPlayer.team().addResource(PvzceIds.SUN, cost);
+            if (dealt) {
+                cardSource.receiveCard(this, bridge, slot.defId());
+            } else {
+                if (cost > 0) {
+                    plantPlayer.team().addResource(PvzceIds.SUN, cost);
+                }
+                restoreCard(slot);
             }
-            restoreCard(slot);
             bridge.send(new ServerMessageS2C("这个僵尸放不下。"));
             return false;
         }
         var bungee = spawned.capability(com.pvzce.common.capability.zombie.BungeeCapability.class);
         if (bungee != null) bungee.targetColumn(x);
         requestEntitySync();
+        if (dealt) {
+            cardSource.afterSpend(this, bridge, slot);
+            return true;
+        }
         bridge.send(new SlotSyncS2C(toSlotInfo(slot)));
         bridge.send(new ResourceDeltaS2C(plantPlayer.team().id().toString(),
                 PvzceIds.SUN.toString(), plantPlayer.team().resourcesOf(PvzceIds.SUN)));

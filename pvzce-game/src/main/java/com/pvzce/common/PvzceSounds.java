@@ -57,6 +57,8 @@ public final class PvzceSounds {
     public static final Identifier ZOMBIE_DIGGER = id("sfx/zombie/digger_zombie");
     public static final Identifier ZOMBIE_GARGANTUAR_THUMP = id("sfx/zombie/gargantuar_thump");
     public static final Identifier ZOMBIE_BALLOON_POP = id("sfx/zombie/balloon_pop");
+    public static final Identifier EFFECT_HYDRAULIC_SHORT = id("sfx/effect/hydraulic_short");
+    public static final Identifier EFFECT_HYDRAULIC = id("sfx/effect/hydraulic");
     public static final Identifier ZOMBIE_BOSS_BOULDER = id("sfx/zombie/bossboulderattack");
     public static final Identifier ZOMBIE_IMP = id("sfx/zombie/imp");
     /** The dancing zombie's call: the original's own sting for the backup dancers. */

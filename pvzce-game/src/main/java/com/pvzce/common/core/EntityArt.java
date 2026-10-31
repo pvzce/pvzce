@@ -34,6 +34,10 @@ import static com.pvzce.common.PvzceConstants.*;
 public final class EntityArt {
     public static final Identifier ZOMBOSS_RV = Identifier.withDefaultNamespace("textures/entities/zombie/boss/zombie_boss/rv");
     public static final Identifier ZOMBOSS_RV_WHEEL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/zombie_boss/rvwheel");
+    public static final Identifier ZOMBOSS_FIREBALL_ANIMATION = Identifier.withDefaultNamespace("zombie/boss/zomboss_fireball");
+    public static final Identifier ZOMBOSS_ICEBALL_ANIMATION = Identifier.withDefaultNamespace("zombie/boss/zomboss_iceball");
+    public static final Identifier ZOMBOSS_FIRE_TRAIL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/ball/fire_trail");
+    public static final Identifier ZOMBOSS_ICE_TRAIL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/ball/ice_trail");
     public static final Identifier ZOMBOSS_FIREBALL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/ball/fire");
     public static final Identifier ZOMBOSS_ICEBALL = Identifier.withDefaultNamespace("textures/entities/zombie/boss/ball/ice");
 

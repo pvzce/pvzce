@@ -88,13 +88,13 @@
   "mechanics": [
     {
       "type": "pvzce:conveyor",
-      "interval_ticks": 180,
+      "interval_ticks": 210,
       "capacity": 10,
       "initial_cards": 0,
       "cards": [
         {
           "id": "pvzce:flower_pot",
-          "weight": 3
+          "weight": 55
         },
         {
           "id": "pvzce:melon_pult",
@@ -179,21 +179,7 @@
     "pvzce:roof_slope"
   ],
   "disable_shaders": true,
-  "hints": [
-    {
-      "trigger": "on_start",
-      "text": "僵王低头时，五路投手都能攻击它。寒冰菇灭火球；火爆辣椒只能融化同一路的冰球。",
-      "duration_ticks": 600
-    },
-    {
-      "trigger": "on_start",
-      "text": "花盆承载植物。前五列避开踩踏，投车会压毁三列两行；保留冰菇、辣椒和补阵卡。",
-      "duration_ticks": 600
-    },
-    {
-      "trigger": "on_card_refused"
-    }
-  ],
+  "hints": [],
   "initial_entities": [
     {
       "kind": "plant",

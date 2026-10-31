@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The reported bug: a mutation's belt dealt the player's plants while the shovel and the
  * watering can rode along on the treads, so the tray - sized to the belt's plant capacity -
  * overflowed and a tool looked like a card the belt was about to hand over. The bar has to
- * partition itself: plants on the belt, everything else fixed outside, the sun card in neither
- * list because the HUD draws it as a bank.
+ * partition itself: the dealt cards (plants, or a versus zombie side's zombies) on the belt,
+ * everything else fixed outside, the sun card in neither list because the HUD draws it as a bank.
  */
 class BeltCardBarTest {
     private static SlotInfo card(int index, String id, String kind) {
@@ -62,6 +62,16 @@ class BeltCardBarTest {
 
         assertEquals(List.of(bacon, shovel), split.side());
         assertEquals(List.of(shovel), split.tools());
+    }
+
+    /** A versus zombie side's belt deals zombies, and they ride it the way plants do. */
+    @Test
+    void zombieCardsRideAZombieSidesBelt() {
+        SlotInfo conehead = card(0, "pvzce:conehead_zombie", "zombie");
+        SlotInfo imp = card(1, "pvzce:imp", "zombie");
+        BeltCardBar.Split split = BeltCardBar.split(List.of(conehead, imp));
+        assertEquals(List.of(conehead, imp), split.belt());
+        assertEquals(List.of(), split.side());
     }
 
     /** A bar with only tools still lays them out; the belt simply deals nothing. */

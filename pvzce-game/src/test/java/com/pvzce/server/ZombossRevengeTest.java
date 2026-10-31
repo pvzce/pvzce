@@ -70,10 +70,113 @@ class ZombossRevengeTest {
                 source.belt().cards().stream().map(c -> c.cardId().path()).toList());
         assertEquals(List.of("flower_pot", "melon_pult", "jalapeno", "cabbage_pult", "kernel_pult", "ice_shroom"),
                 source.belt().def().cards().stream().map(c -> c.card().path()).toList());
-        float x = boss(level).cellX();
         tick(level, 250);
-        assertEquals(x, boss(level).cellX());
+        assertEquals(ZOMBOSS_ANCHOR_X, boss(level).cellX());
+        tick(level, 250);
+        assertEquals(ZOMBOSS_ANCHOR_X, boss(level).cellX());
         assertEquals(GameStateS2C.RUNNING, level.gameState());
+    }
+
+    @Test void summoningPlaysHydraulicsOnceAndResumeDoesNotReplayIt() {
+        LevelServer level = board();
+        CompoundTag tag = state(level, "idle", 1);
+        tag.putInt("spawnLeft", 0);
+        cap(level).load(tag);
+        var sounds = new java.util.ArrayList<String>();
+        LevelServer.ServerBridge bridge = packet -> {
+            if (packet instanceof com.pvzce.common.network.packet.EffectEventS2C fx) sounds.add(fx.sound());
+        };
+        level.tick(bridge);
+        assertEquals("spawn", cap(level).status(boss(level)).phase());
+        assertEquals(1, sounds.stream().filter(com.pvzce.common.PvzceSounds.EFFECT_HYDRAULIC_SHORT.toString()::equals).count());
+        LevelServer resumed = new LevelServer(def);
+        resumed.restore(level.save());
+        sounds.clear();
+        for (int i = 0; i < ZOMBOSS_SPAWN_TICKS; i++) resumed.tick(bridge);
+        assertFalse(sounds.contains(com.pvzce.common.PvzceSounds.EFFECT_HYDRAULIC_SHORT.toString()));
+        assertEquals(2, resumed.aliveZombieCount());
+    }
+
+    @Test void spitTypeIsChosenBeforeReleaseSurvivesResumeAndFormsBeforeRolling() {
+        var seen = new java.util.HashSet<Integer>();
+        for (int seed = 0; seed < 8; seed++) {
+            LevelServer level = board();
+            cap(level).load(state(level, "head_before", 1));
+            level.random().setSeed(seed);
+            tick(level, 1);
+            int type = cap(level).status(boss(level)).spitType();
+            seen.add(type);
+            assertEquals(0, cap(level).status(boss(level)).ballType());
+            LevelServer resumed = new LevelServer(def);
+            resumed.restore(level.save());
+            tick(resumed, Math.round(ZOMBOSS_SPIT_TICKS * 0.42F));
+            var formed = cap(resumed).status(boss(resumed));
+            assertEquals(type, formed.spitType());
+            assertEquals(type, formed.ballType());
+            tick(resumed, ZOMBOSS_BALL_FORM_TICKS);
+            assertEquals(formed.ballX(), cap(resumed).status(boss(resumed)).ballX());
+            tick(resumed, 1);
+            assertTrue(cap(resumed).status(boss(resumed)).ballX() < formed.ballX());
+        }
+        assertEquals(java.util.Set.of(1, 2), seen);
+    }
+
+    @Test void conveyorCompensatesForPotsEmptyCarriersCrowdingAndRvDamage() {
+        LevelServer level = board();
+        var belt = ((BeltCardSource)level.cardSource()).belt();
+        belt.clear();
+        var pot = belt.def().cards().stream().filter(c -> c.card().equals(PvzceIds.id("flower_pot"))).findFirst().orElseThrow();
+        var cabbage = belt.def().cards().stream().filter(c -> c.card().equals(PvzceIds.id("cabbage_pult"))).findFirst().orElseThrow();
+        assertEquals(55, pot.weight());
+        int initial = ZombossMechanic.conveyorWeight(level, belt, pot);
+        assertTrue(initial > 1 && initial < pot.weight());
+        for (var entity : level.entities()) if (entity instanceof PlantEntity p) p.remove();
+        level.flushPending(SILENT);
+        assertEquals(55, ZombossMechanic.conveyorWeight(level, belt, pot));
+        assertEquals(2, ZombossMechanic.conveyorWeight(level, belt, cabbage));
+        for (int x = 0; x < 6; x++) plant(level, "flower_pot", x, 0);
+        assertEquals(10, ZombossMechanic.conveyorWeight(level, belt, cabbage));
+        cap(level).load(state(level, "rv", 100));
+        assertEquals(500, ZombossMechanic.conveyorWeight(level, belt, pot));
+        for (int i = 0; i < 3; i++) belt.add(pot.card());
+        assertEquals(5, ZombossMechanic.conveyorWeight(level, belt, pot));
+        belt.add(pot.card());
+        assertEquals(1, ZombossMechanic.conveyorWeight(level, belt, pot));
+        assertTrue(ZombossMechanic.conveyorInterval(4) < ZombossMechanic.conveyorInterval(5));
+        assertTrue(ZombossMechanic.conveyorInterval(6) < ZombossMechanic.conveyorInterval(7));
+        assertTrue(ZombossMechanic.conveyorInterval(8) < ZombossMechanic.conveyorInterval(9));
+    }
+
+    @Test void bossBungeesLeaveThreeFingersAndResumeTheirFlightToAdjacentColumns() {
+        LevelServer level = board();
+        CompoundTag tag = state(level, "bungee", 1);
+        tag.putInt("targetColumn", 1);
+        cap(level).load(tag);
+        tick(level, 1);
+        var thieves = level.entities().stream().filter(e -> e instanceof ZombieEntity z
+                && z.capability(com.pvzce.common.capability.zombie.BungeeCapability.class) != null)
+                .map(e -> (ZombieEntity)e).toList();
+        assertEquals(3, thieves.size());
+        for (int i = 0; i < thieves.size(); i++) {
+            ZombieEntity thief = thieves.get(i);
+            assertEquals(ZOMBOSS_BUNGEE_HAND_X + ZOMBOSS_BUNGEE_HAND_OFFSETS_X.get(i), thief.cellX());
+            assertEquals(ZOMBOSS_BUNGEE_HAND_Y + ZOMBOSS_BUNGEE_HAND_OFFSETS_Y.get(i), thief.cellY() + thief.height(), 0.0001F);
+        }
+        tick(level, 20);
+        LevelServer resumed = new LevelServer(def);
+        resumed.restore(level.save());
+        tick(level, ZOMBOSS_BUNGEE_TRAVEL_TICKS - 20);
+        tick(resumed, ZOMBOSS_BUNGEE_TRAVEL_TICKS - 20);
+        var copies = resumed.entities().stream().filter(e -> e instanceof ZombieEntity z
+                && z.capability(com.pvzce.common.capability.zombie.BungeeCapability.class) != null).toList();
+        for (int i = 0; i < thieves.size(); i++) {
+            ZombieEntity thief = thieves.get(i);
+            var copy = copies.get(i);
+            assertEquals(1.5F + i, thief.cellX());
+            assertEquals(thief.cellX(), copy.cellX());
+            assertEquals(thief.height(), copy.height());
+            assertEquals(level.surfaceHeight(thief.surfaceId(), thief.cellX(), thief.cellY()), thief.height(), 0.0001F);
+        }
     }
 
     @Test void hiddenBossRejectsAshAndButterButLoweredHeadCanBeLobbedFromEveryRow() {
@@ -129,6 +232,7 @@ class ZombossRevengeTest {
         LevelServer level = board();
         PlantEntity cabbage = plant(level, "cabbage_pult", 0, 2);
         CompoundTag tag = state(level, "idle", 1000);
+        tag.putInt("ballAge", ZOMBOSS_BALL_FORM_TICKS);
         tag.putInt("ballType", 1); tag.putInt("ballRow", 2); tag.putFloat("ballX", 0.5F);
         cap(level).load(tag);
         tick(level, 80);
@@ -170,7 +274,7 @@ class ZombossRevengeTest {
         LevelServer level = board();
         for (var entity : level.entities()) if (entity instanceof PlantEntity p) p.remove();
         level.flushPending(SILENT);
-        CompoundTag tag = state(level, "bungee", ZOMBOSS_BUNGEE_TICKS - Math.round(ZOMBOSS_BUNGEE_TICKS * 0.4F) + 1);
+        CompoundTag tag = state(level, "bungee", 1);
         tag.putInt("actionTicks", ZOMBOSS_BUNGEE_TICKS);
         tag.putInt("headClock", 1);
         cap(level).load(tag);

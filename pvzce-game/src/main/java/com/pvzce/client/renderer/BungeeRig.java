@@ -55,16 +55,33 @@ public final class BungeeRig {
         if (client.camera() == null || !BUNGEE_ZOMBIE.equals(entity.defIdString())) {
             return;
         }
+        var boss = client.level().mechanicStateOrNull(com.pvzce.common.PvzceIds.MECHANIC_ZOMBOSS,
+                com.pvzce.common.level.mechanic.ZombossMechanic.Status.class);
+        var rope = boss == null ? null : boss.bungees().stream()
+                .filter(r -> r.entityId() == entity.id()).findFirst().orElse(null);
         float cellX = entity.visualCellX();
+        float targetX = rope == null ? cellX : rope.column() + 0.5F;
         // The same ground contact the shadow is drawn on, so the target lies on the lawn rather
         // than floating at whatever height the rope happens to be at.
         float groundY = entity.visualCellY() - EntityVisuals.anchorLift(entity.kind());
-        float groundHeight = client.level().sceneBoard().elevationAt(entity.surfaceId(), cellX, entity.visualCellY());
+        float groundHeight = client.level().sceneBoard().elevationAt(entity.surfaceId(), targetX, entity.visualCellY());
         groundY += groundHeight;
-        client.drawTexture(TARGET, cellX - TARGET_WIDTH * 0.5F, groundY - TARGET_HEIGHT * 0.5F,
+        client.drawTexture(TARGET, targetX - TARGET_WIDTH * 0.5F, groundY - TARGET_HEIGHT * 0.5F,
                 TARGET_WIDTH, TARGET_HEIGHT, TARGET_Z, 1F, 1F, 1F, 1F);
 
         float bottom = groundY + entity.visualHeight() - groundHeight + HAND_LIFT;
+        if (rope != null) {
+            float top = rope.handY() - EntityVisuals.anchorLift(entity.kind()) + HAND_LIFT;
+            float dx = rope.handX() - cellX, dy = top - bottom;
+            float length = (float)Math.hypot(dx, dy);
+            if (length < 0.01F) return;
+            float ox = dy / length * CORD_WIDTH / 2F, oy = -dx / length * CORD_WIDTH / 2F;
+            client.drawTextureQuad(CORD, cellX - ox, bottom - oy, cellX + ox, bottom + oy,
+                    rope.handX() + ox, top + oy, rope.handX() - ox, top - oy,
+                    0, client.textureHeight(CORD), client.textureWidth(CORD), client.textureHeight(CORD),
+                    client.textureWidth(CORD), 0, 0, 0, CORD_Z, 1F, 1F, 1F, 1F);
+            return;
+        }
         float top = client.camera().worldTop();
         float tile = CORD_WIDTH * CORD_TILE_ASPECT;
         for (float y = bottom; y < top; y += tile) {

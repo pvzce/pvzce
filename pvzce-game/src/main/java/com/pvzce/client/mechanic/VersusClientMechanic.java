@@ -1,10 +1,13 @@
 package com.pvzce.client.mechanic;
 
+import com.pvzce.api.content.VersusData;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.ClientLevel;
 import com.pvzce.client.PvzceClient;
 import com.pvzce.client.gui.GuiLang;
 import com.pvzce.client.gui.HoverTip;
+import com.pvzce.client.gui.hud.cardbar.BeltCardBar;
+import com.pvzce.client.gui.hud.cardbar.CardBar;
 import com.pvzce.common.PvzceIds;
 import com.pvzce.common.level.mechanic.VersusMechanic;
 import com.pvzce.common.network.PacketByteBuf;
@@ -42,11 +45,22 @@ final class VersusClientMechanic implements ClientMechanic {
         level.setMechanicState(PvzceIds.MECHANIC_VERSUS, VersusMechanic.State.CODEC.decode(payload));
     }
 
+    /** A side that deals from a belt draws the belt; a side with a deck keeps the ordinary seed bar. */
+    @Override
+    public CardBar createCardBar(CardBar.Host host) {
+        ClientLevel level = host.client().level();
+        VersusData data = level.mechanicData(id(), VersusData.class);
+        return data != null && data.beltFor(level.controlledTeamId()).isPresent() ? new BeltCardBar(host) : null;
+    }
+
     @Override
     public void renderHud(PvzceClient client) {
         VersusMechanic.State state = client.level()
                 .mechanicStateOrNull(PvzceIds.MECHANIC_VERSUS, VersusMechanic.State.class);
-        if (state == null) {
+        VersusData data = client.level().mechanicData(id(), VersusData.class);
+        // A match between two belts has no sun race and no hand to show: the bars and the board
+        // are the whole state of it.
+        if (state == null || data != null && data.needsTwoPlayers()) {
             return;
         }
         renderOpponent(client, state);

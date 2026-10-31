@@ -153,6 +153,8 @@ class PacketProtocolTest {
                 new com.pvzce.common.network.packet.NextWaveC2S(),
                 new com.pvzce.common.network.packet.FireAtC2S(7, 4, 2),
                 new com.pvzce.common.network.packet.PlaceZombieC2S(3, 2, 1),
+                // A boss pilot's aimed move: its name and the cell, nothing about whether it may go.
+                new com.pvzce.common.network.packet.ZombossCommandC2S("rv", 4, 1),
                 new com.pvzce.common.network.packet.RhythmHitC2S("row", 2, 480, 3),
                 new com.pvzce.common.network.packet.AiSettingsC2S(
                         "https://example.test/v1/systemone", "typesafe/jev-1.13", "k",
@@ -384,6 +386,7 @@ class PacketProtocolTest {
             NextWaveC2S:23
             FireAtC2S:1f0000000700000004000000020c70767a63653a67726f756e64
             PlaceZombieC2S:200000000300000002000000010c70767a63653a67726f756e64
+            ZombossCommandC2S:290272760000000400000001
             RhythmHitC2S:2103726f7700000002000001e000000003
             AiSettingsC2S:222168747470733a2f2f6578616d706c652e746573742f76312f73797374656d6f6e651174797065736166652f6a65762d312e3133016b2568747470733a2f2f6578616d706c652e746573742f636861742f636f6d706c6574696f6e730f736f6d652d636861742d6d6f64656c016301
             CreateWorldC2S:0e0773616e64626f7801

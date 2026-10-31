@@ -295,10 +295,66 @@ class MultiplayerRoomTest {
                 var result = guest.packets.stream().filter(p -> p instanceof GameStateS2C).map(p -> (GameStateS2C)p).reduce((a,b) -> b).orElseThrow();
                 assertEquals(guestTeam.equals("pvzce:zombie_team") ? GameStateS2C.WON : GameStateS2C.LOST, result.state());
                 assertEquals("pvzce:zombie_team", result.winTeamId());
-                assertTrue(host.packets().stream().anyMatch(p -> p instanceof GameStateS2C g
+                // Awaited rather than read: the guest's copy can be drained before the host's queue is.
+                await(host, peers, () -> host.packets().stream().anyMatch(p -> p instanceof GameStateS2C g
                         && g.state().equals(hostTeam.equals("pvzce:zombie_team") ? GameStateS2C.WON : GameStateS2C.LOST)));
             }
         }
+    }
+
+    @Test void zombossVersusDealsEachSeatItsOwnBeltAndAnswersOnlyThePilot(@TempDir Path dir) throws Exception {
+        String map = "pvzce:yard/versus/zomboss";
+        try (var host = ServerHarness.createWithWorld(dir, "world", true)) {
+            host.clear();
+            assertTrue(host.levelList("world").levels().stream().noneMatch(l -> l.id().equals(map)),
+                    "a match for two people is not offered to one");
+            host.send(new RoomC2S("open", "0", "versus")); host.awaitPacket(RoomS2C.class, 15_000);
+            try (var guest = new Peer(host.server().multiplayerPort(), "")) {
+                var peers = List.of(guest);
+                await(host, peers, () -> guest.room != null);
+                assertTrue(guest.packets.stream().filter(LevelListS2C.class::isInstance).map(LevelListS2C.class::cast)
+                        .reduce((a, b) -> b).orElseThrow().levels().stream().anyMatch(l -> l.id().equals(map)));
+                host.send(new PlayLevelC2S(map, "world", true, List.of(), List.of(), "pvzce:plant_team"));
+                await(host, peers, () -> guest.room.levelId().equals(map));
+                guest.connection.send(new RoomC2S("ready", "", ""));
+                await(host, peers, () -> guest.room.ready());
+                host.send(new RoomC2S("start", "", ""));
+                await(host, peers, () -> guest.init != null);
+                host.send(new CommandC2S("/tick freeze"));
+                await(host, peers, () -> host.server().tickRateManager().isFrozen());
+                assertEquals("pvzce:zombie_team", guest.init.controlledTeamId());
+                assertTrue(guest.init.slots().stream().allMatch(s -> s.kind().equals("zombie")), guest.init.slots().toString());
+                assertTrue(host.packet(LevelInitS2C.class).slots().stream().noneMatch(s -> s.kind().equals("zombie")));
+
+                host.clear(); guest.packets.clear();
+                host.send(new CommandC2S("/tick step " + (com.pvzce.common.PvzceConstants.ZOMBOSS_BELT_OPENING_TICKS + 1)));
+                await(host, peers, () -> beltKinds(host.packets()).contains("plant") && beltKinds(guest.packets).contains("zombie"));
+                assertEquals(Set.of("plant"), beltKinds(host.packets()), "the host sees its own belt only");
+                assertEquals(Set.of("zombie"), beltKinds(guest.packets), "and so does the guest");
+
+                guest.connection.send(new ZombossCommandC2S("lower", 0, 0));
+                await(host, peers, () -> guest.packets.stream().anyMatch(p -> p instanceof ServerMessageS2C m
+                        && m.message().equals("gui.pvzce.zomboss.refused.cooldown")));
+                host.send(new ZombossCommandC2S("lower", 0, 0));
+                await(host, List.of(), () -> host.packets().stream().anyMatch(p -> p instanceof ServerMessageS2C m
+                        && m.message().equals("gui.pvzce.zomboss.refused.side")));
+            }
+        }
+    }
+
+    /** The card kinds the belt syncs in a packet list carried, tools left out. */
+    private static Set<String> beltKinds(List<PvzcePacket> packets) {
+        Set<String> kinds = new HashSet<>();
+        for (PvzcePacket packet : List.copyOf(packets)) {
+            if (packet instanceof MechanicSyncS2C sync && sync.mechanic().equals(PvzceIds.MECHANIC_CONVEYOR)) {
+                var buf = sync.payloadBuffer();
+                try {
+                    com.pvzce.common.level.mechanic.ConveyorMechanic.BarState.CODEC.decode(buf).cards().stream()
+                            .filter(card -> !card.kind().equals("tool")).forEach(card -> kinds.add(card.kind()));
+                } finally { buf.delegate().release(); }
+            }
+        }
+        return kinds;
     }
 
     private static com.pvzce.common.level.mechanic.VersusMechanic.State versusState(List<PvzcePacket> packets) {

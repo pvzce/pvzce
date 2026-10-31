@@ -47,12 +47,19 @@ public final class ConveyorBelt {
     private final Map<Identifier, Integer> dealt = new HashMap<>();
     private java.util.function.ToIntFunction<LevelBelt.BeltCard> weight = LevelBelt.BeltCard::weight;
     private Identifier lastDealt;
+    private java.util.function.IntSupplier interval;
+
+    public void setInterval(java.util.function.IntSupplier interval) { this.interval = interval; }
+    public void delayNext(int ticks) { ticksUntilNext = ticks; }
+    private int intervalTicks() { return interval == null ? def.intervalTicks() : interval.getAsInt(); }
 
     public void setWeight(java.util.function.ToIntFunction<LevelBelt.BeltCard> weight) { this.weight = weight; }
     public Identifier lastDealt() { return lastDealt; }
 
     private int nextId;
     private int ticksUntilNext;
+    /** Ticks this belt has run; a card's {@code from_ticks} is measured against it. */
+    private int age;
     private boolean changed = true;
 
     public ConveyorBelt(LevelBelt def, Random random) {
@@ -60,7 +67,7 @@ public final class ConveyorBelt {
         for (int i = 0; i < this.def.initialCards(); i++) {
             produce(random);
         }
-        this.ticksUntilNext = def.intervalTicks();
+        this.ticksUntilNext = intervalTicks();
         this.changed = true;
     }
 
@@ -92,10 +99,11 @@ public final class ConveyorBelt {
 
     /** Advances the delivery clock by one server tick. */
     public void tick(Random random) {
+        age++;
         if (isFull() || !canProduce()) {
             // A full belt is not "behind schedule": it resumes one interval after a card is
             // taken, rather than dumping the backlog it accumulated while full.
-            ticksUntilNext = def.intervalTicks();
+            ticksUntilNext = intervalTicks();
             return;
         }
         if (ticksUntilNext > 0) {
@@ -103,12 +111,14 @@ public final class ConveyorBelt {
         }
         if (ticksUntilNext <= 0) {
             produce(random);
-            ticksUntilNext = def.intervalTicks();
+            ticksUntilNext = intervalTicks();
         }
     }
 
     private void produce(Random random) {
-        Identifier cardId = def.pick(random, card -> dealt.getOrDefault(card, 0), weight);
+        // A card that has not joined the pool yet weighs nothing; the draw renormalises over the rest.
+        Identifier cardId = def.pick(random, card -> dealt.getOrDefault(card, 0),
+                card -> age < card.fromTicks() ? 0 : weight.applyAsInt(card));
         if (cardId == null) {
             return;
         }
@@ -168,6 +178,7 @@ public final class ConveyorBelt {
         if (lastDealt != null) tag.putString("LastDealt", lastDealt.toString());
         tag.putInt("NextId", nextId);
         tag.putInt("TicksUntilNext", ticksUntilNext);
+        tag.putInt("Age", age);
         ListTag list = new ListTag();
         for (Card card : cards) {
             CompoundTag cardTag = new CompoundTag();
@@ -196,6 +207,7 @@ public final class ConveyorBelt {
         dealt.clear();
         nextId = Math.max(0, tag.getInt("NextId"));
         ticksUntilNext = Math.max(0, tag.getInt("TicksUntilNext"));
+        age = Math.max(0, tag.getInt("Age"));
         for (Tag element : tag.getList("Dealt").values()) {
             if (!(element instanceof CompoundTag countTag)) {
                 continue;

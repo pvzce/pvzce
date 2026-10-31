@@ -48,6 +48,8 @@ public final class BungeeCapability implements ZombieCapability {
     private Stage stage = Stage.ARRIVING;
     private int targetColumn = -1;
     private boolean playerTarget;
+    private boolean bossRelease;
+    private float releaseX, releaseY;
     private int targetPlantId = -1;
     private int attemptsLeft;
     private Identifier cargo;
@@ -71,8 +73,26 @@ public final class BungeeCapability implements ZombieCapability {
     /** A player chooses the theft target; ordinary raids continue to pick one. */
     public void targetColumn(int column) { targetColumn = column; playerTarget = true; }
 
+    /** Released by the boss's hand before travelling to the theft square. */
+    public void releaseFrom(ZombieEntity zombie, float x, float y, int column, int row) {
+        targetColumn(column);
+        bossRelease = true;
+        releaseX = x; releaseY = y;
+        zombie.setCellX(x);
+        zombie.setCellY(row + 0.5F);
+        zombie.setHeight(y - zombie.cellY());
+        zombie.setAnimation(EntityAnimations.BUNGEE_DROP);
+        stage = Stage.FROM_HAND;
+        phaseTicks = 0;
+    }
+
+    public com.pvzce.common.level.mechanic.ZombossMechanic.BungeeRope bossRope(ZombieEntity zombie) {
+        return bossRelease ? new com.pvzce.common.level.mechanic.ZombossMechanic.BungeeRope(
+                zombie.id(), targetColumn, zombie.gridY(), releaseX, releaseY) : null;
+    }
+
     private enum Stage {
-        ARRIVING, DROPPING, GRABBING, HOLDING, RISING, DONE
+        ARRIVING, DROPPING, GRABBING, HOLDING, RISING, DONE, FROM_HAND
     }
 
     public BungeeCapability(int dropTicks, int grabTicks, int holdTicks, int riseTicks,
@@ -165,6 +185,17 @@ public final class BungeeCapability implements ZombieCapability {
         var terrain = level.sceneAt(targetColumn, zombie.gridY(), zombie.surfaceId());
         float ground = level.surfaceHeight(zombie.surfaceId(), targetColumn + 0.5F, zombie.cellY());
         return switch (stage) {
+            case FROM_HAND -> {
+                float t = progress(com.pvzce.common.PvzceConstants.ZOMBOSS_BUNGEE_TRAVEL_TICKS);
+                zombie.setCellX(releaseX + (targetColumn + 0.5F - releaseX) * t);
+                float top = ground;
+                zombie.setHeight(releaseY - zombie.cellY() + (top - releaseY + zombie.cellY()) * t);
+                if (t >= 1F) {
+                    stage = Stage.GRABBING;
+                    phaseTicks = 0;
+                }
+                yield true;
+            }
             case ARRIVING -> arrive(zombie, level);
             case DROPPING -> {
                 // The cord is paying out: the body comes down over the clip's whole length.
@@ -183,7 +214,10 @@ public final class BungeeCapability implements ZombieCapability {
             }
             case RISING -> {
                 // Hauled back up with whatever it took; `rise` removes it at the top.
-                zombie.setHeight(ground + dropHeight * progress(riseTicks));
+                float top = bossRelease ? releaseY - zombie.cellY() : ground + dropHeight;
+                zombie.setHeight(ground + (top - ground) * progress(riseTicks));
+                if (bossRelease) zombie.setCellX(targetColumn + 0.5F
+                        + (releaseX - targetColumn - 0.5F) * progress(riseTicks));
                 yield rise(zombie, level);
             }
             case DONE -> true;
@@ -311,6 +345,8 @@ public final class BungeeCapability implements ZombieCapability {
         tag.putInt("attemptsLeft", attemptsLeft);
         tag.putInt("target", targetColumn);
         tag.putByte("playerTarget", (byte) (playerTarget ? 1 : 0));
+        tag.putByte("bossRelease", (byte)(bossRelease ? 1 : 0));
+        tag.putFloat("releaseX", releaseX); tag.putFloat("releaseY", releaseY);
         tag.putInt("plant", targetPlantId);
         tag.putInt("stage", stage.ordinal());
         tag.putString("cargo", cargo == null ? "" : cargo.toString());
@@ -324,6 +360,8 @@ public final class BungeeCapability implements ZombieCapability {
         attemptsLeft = tag.contains("attemptsLeft") ? tag.getInt("attemptsLeft") : retries;
         targetColumn = tag.getInt("target");
         playerTarget = tag.getInt("playerTarget") != 0;
+        bossRelease = tag.getInt("bossRelease") != 0;
+        releaseX = tag.getFloat("releaseX"); releaseY = tag.getFloat("releaseY");
         targetPlantId = tag.getInt("plant");
         cargo = Identifier.tryParse(tag.getString("cargo"));
         cargoHealthScale = tag.contains("cargo_scale") ? tag.getFloat("cargo_scale") : 1F;

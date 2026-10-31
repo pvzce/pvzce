@@ -184,6 +184,13 @@ public abstract class AnimationPlayback {
         onRestart(now);
     }
 
+    /** Samples a server-timed prop at its saved clip age without replaying event cues. */
+    public final void seek(float seconds) {
+        double now = paused ? pausedAt : manager.now();
+        startGameSeconds = now - Math.max(0F, seconds) / effectiveSpeed();
+        previousSampleTime = Math.max(0F, seconds);
+    }
+
     public final void stop() {
         if (!stopped) {
             stopped = true;

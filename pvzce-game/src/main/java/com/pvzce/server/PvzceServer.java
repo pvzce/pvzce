@@ -508,7 +508,11 @@ public final class PvzceServer implements Runnable {
                     Identifier collection = containedIn.get(id);
                     boolean humanVersus = room.open() && room.versus();
                     String name = humanVersus ? def.displayName().replace("人机对战", "真人对战") : def.displayName();
-                    String description = humanVersus ? "植物收集到 " + com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).orElseThrow().sunGoal()
+                    // A race is described by its goal; a map with another way to win describes itself.
+                    com.pvzce.api.content.VersusData race = humanVersus
+                            ? com.pvzce.common.level.mechanic.LevelMechanics.versusData(def)
+                            .filter(com.pvzce.api.content.VersusData::races).orElse(null) : null;
+                    String description = race != null ? "植物收集到 " + race.sunGoal()
                             + " 阳光获胜；僵尸突破最左端获胜。双方使用地图卡组，房主选择阵营，客人加入另一方。" : def.description();
                     LevelListS2C.LevelInfo row = new LevelListS2C.LevelInfo(id.toString(),
                             name, description, def.winTeam().toString(), teams,
@@ -1612,6 +1616,12 @@ public final class PvzceServer implements Runnable {
                 // I, Zombie's click. The level re-derives the price, the cooldown and the side.
                 if (level != null) {
                     level.placeZombie(bridge, place.slotIndex(), place.gridX(), place.gridY(), place.surfaceId());
+                }
+            } else if (packet instanceof com.pvzce.common.network.packet.ZombossCommandC2S command) {
+                // The boss pilot's move. The level checks the side; the machine decides whether the
+                // move can begin now.
+                if (level != null) {
+                    level.commandZomboss(bridge, command.action(), command.gridX(), command.gridY());
                 }
             } else if (packet instanceof com.pvzce.common.network.packet.FireAtC2S fire) {
                 // A hand-aimed shot. The level re-derives everything: which entity that id is,

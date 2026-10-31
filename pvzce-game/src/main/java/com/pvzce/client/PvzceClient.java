@@ -714,11 +714,15 @@ public final class PvzceClient {
      * not a known key is a sentence the server wrote, and passes through untouched, so every
      * existing message behaves exactly as before.
      */
-    private static String localizeServerMessage(String message) {
+    static String localizeServerMessage(String message) {
         if (message == null || message.isEmpty()) {
             return message;
         }
-        String translated = GuiLang.lookup(message);
+        // The line is the key itself ("gui.pvzce.versus.zombie_zone"); a content id is the other form.
+        String translated = GuiLang.raw(message, null);
+        if (translated == null) {
+            translated = GuiLang.lookup(message);
+        }
         return translated == null ? message : translated;
     }
 
@@ -2556,6 +2560,9 @@ public final class PvzceClient {
      * level's own panels would have offered does the caller mean. A keyword that matches nothing, or a
      * caller with no keyword, leaves the side to the level's default - which is what entering from the
      * menu without touching a panel does.
+     *
+     * <p>A level the list does not show - a map only a versus room offers - is answered from its own
+     * definition, which is where the list's teams come from.
      */
     private void resolveRequestedTeam(String levelId, String teamKeyword) {
         String team = teamKeyword == null ? "" : teamKeyword.trim();
@@ -2563,13 +2570,14 @@ public final class PvzceClient {
             return;
         }
         LevelListS2C.LevelInfo info = findLevelInfo(levelId);
-        if (info == null) {
-            return;
-        }
-        for (var candidate : info.teams()) {
-            if (candidate.playable() && candidate.id().toLowerCase(java.util.Locale.ROOT)
-                    .contains(team.toLowerCase(java.util.Locale.ROOT))) {
-                pendingHumanTeam = candidate.id();
+        com.pvzce.api.content.LevelDef def = info != null || Identifier.tryParse(levelId) == null ? null
+                : com.pvzce.common.core.BuiltInRegistries.LEVELS.get(Identifier.tryParse(levelId));
+        List<String> playable = info != null
+                ? info.teams().stream().filter(LevelListS2C.TeamInfo::playable).map(LevelListS2C.TeamInfo::id).toList()
+                : def == null ? List.of() : def.playableTeamDefs().stream().map(t -> t.id().toString()).toList();
+        for (String candidate : playable) {
+            if (candidate.toLowerCase(java.util.Locale.ROOT).contains(team.toLowerCase(java.util.Locale.ROOT))) {
+                pendingHumanTeam = candidate;
             }
         }
     }

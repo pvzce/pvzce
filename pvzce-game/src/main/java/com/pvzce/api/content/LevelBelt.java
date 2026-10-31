@@ -38,10 +38,15 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
     /** A belt longer than this is a wall of cards, not a belt. */
     public static final int MAX_CAPACITY = 12;
 
-    /** One entry of the belt's pool: a card id (slot or plant) and its relative weight. */
-    public record BeltCard(Identifier card, int weight, int maxCount) {
+    /**
+     * One entry of the belt's pool: a card id (slot or plant), its relative weight, how many of it the
+     * belt may deal, and how far into the run it joins the pool.
+     */
+    public record BeltCard(Identifier card, int weight, int maxCount, int fromTicks) {
         /** {@code max_count} unwritten: this card may arrive as often as the belt draws it. */
         public static final int UNLIMITED = -1;
+        /** {@code from_ticks} unwritten: the card is in the pool from the first delivery. */
+        public static final int FROM_THE_START = 0;
 
         public static final Codec<BeltCard> CODEC = RecordCodecBuilder.create(i -> i.group(
                 Identifier.CODEC.fieldOf("id").forGetter(BeltCard::card),
@@ -50,12 +55,20 @@ public record LevelBelt(int intervalTicks, int capacity, int initialCards, List<
                 // thirteen grave busters and then stops offering them, because there is
                 // nothing left for a fourteenth to do. The belt is where the counting
                 // happens, so the limit is enforced where the cards are drawn.
-                Codec.INT.optionalFieldOf("max_count", UNLIMITED).forGetter(BeltCard::maxCount)
+                Codec.INT.optionalFieldOf("max_count", UNLIMITED).forGetter(BeltCard::maxCount),
+                // A card that joins the pool partway through the run, counted in the belt's own
+                // ticks: the boss's zombies come plain first and heavier as the fight goes on.
+                Codec.INT.optionalFieldOf("from_ticks", FROM_THE_START).forGetter(BeltCard::fromTicks)
         ).apply(i, BeltCard::new));
+
+        public BeltCard(Identifier card, int weight, int maxCount) {
+            this(card, weight, maxCount, FROM_THE_START);
+        }
 
         public BeltCard {
             weight = Math.max(0, weight);
             maxCount = maxCount < 0 ? UNLIMITED : maxCount;
+            fromTicks = Math.max(FROM_THE_START, fromTicks);
         }
 
         /** True when one more of these may still be dealt after {@code dealt} copies. */

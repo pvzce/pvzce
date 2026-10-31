@@ -54,8 +54,11 @@ final class MultiplayerRoom implements AutoCloseable {
     boolean open() { return listener != null; }
     boolean waiting() { return open() && !started; }
     boolean versus() { return versus; }
+    /** A versus room lists versus maps and a coop room the rest; alone, a map two people must play is not offered. */
     boolean acceptsLevel(com.pvzce.api.content.LevelDef def) {
-        return !open() || versus == com.pvzce.common.level.mechanic.LevelMechanics.versusData(def).isPresent();
+        Optional<com.pvzce.api.content.VersusData> match =
+                com.pvzce.common.level.mechanic.LevelMechanics.versusData(def);
+        return open() ? versus == match.isPresent() : match.map(data -> !data.needsTwoPlayers()).orElse(true);
     }
     Connection replyConnection() { return actor == null ? host : actor.connection; }
 
@@ -260,7 +263,8 @@ final class MultiplayerRoom implements AutoCloseable {
                 || packet instanceof PickUpCardC2S || packet instanceof PlantHeldCardC2S
                 || packet instanceof ReleaseHeldCardC2S || packet instanceof FireAtC2S
                 || packet instanceof ReleaseMowerC2S || packet instanceof FusionActionC2S
-                || packet instanceof PickCardC2S || packet instanceof OutpostStrikeC2S;
+                || packet instanceof PickCardC2S || packet instanceof OutpostStrikeC2S
+                || packet instanceof ZombossCommandC2S;
     }
 
     private void selectLevel(PlayLevelC2S play) {
@@ -334,11 +338,15 @@ final class MultiplayerRoom implements AutoCloseable {
 
     void route(PvzcePacket packet) {
         if (!open()) { host.send(packet); return; }
-        if (packet instanceof SlotSyncS2C && server.level() != null && server.level().cardSource().dealsItsOwnCards()) {
+        // A card bar is the seat's, except a coop belt, which every seat of the team shares. Each
+        // versus side holds its own bar, belts included, so the other side never sees it.
+        boolean bar = packet instanceof SlotSyncS2C || packet instanceof MechanicSyncS2C sync
+                && sync.mechanic().equals(PvzceIds.MECHANIC_CONVEYOR);
+        if (bar && !versus && server.level() != null && server.level().cardSource().dealsItsOwnCards()) {
             broadcast(packet); return;
         }
-        if (packet instanceof SlotSyncS2C || packet instanceof HeldCardS2C || packet instanceof CarrySyncS2C
-                || packet instanceof ServerMessageS2C || packet instanceof TeamSyncS2C) {
+        if (bar && (versus || packet instanceof SlotSyncS2C) || packet instanceof HeldCardS2C
+                || packet instanceof CarrySyncS2C || packet instanceof ServerMessageS2C || packet instanceof TeamSyncS2C) {
             Connection target = replyConnection(); if (target != null) target.send(packet);
         } else broadcast(packet);
     }

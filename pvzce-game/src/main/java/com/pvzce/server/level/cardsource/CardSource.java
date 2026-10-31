@@ -52,6 +52,8 @@ public interface CardSource {
     /**
      * Takes payment for one card.
      *
+     * @param plant the plant the card places, or {@code null} for a zombie card - which only a source
+     *              that deals its own cards is asked for; a deck's zombie card is charged by the level
      * @return false when the card was refused, in which case a message has already been
      *         sent and nothing was charged
      */

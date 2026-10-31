@@ -55,7 +55,7 @@ public final class BeltCardSource implements CardSource {
         this.random = context.random();
         this.belt = new ConveyorBelt(def, this.random);
         // The bar the first rebuild reads back has to exist first. `rebuildBar` keeps whatever is
-        // already on the bar that a belt cannot deal (`nonPlantSlots`) - and the bar is empty at
+        // already on the bar that a belt cannot deal (`keptSlots`) - and the bar is empty at
         // this point for a belt level, because the seed plan hands a level that deals its own
         // cards an empty selection (`SeedSelection.plan`). So the shovel such a level declares in
         // `slots` was never put anywhere: the client's "the cards the belt did not take over"
@@ -67,7 +67,8 @@ public final class BeltCardSource implements CardSource {
     }
 
     /**
-     * The bar's cards that a belt cannot deal: everything that is not a plant card.
+     * The bar's cards that a belt cannot deal: tools and resources. A belt deals plants, and on a
+     * versus level's zombie side it deals zombies; both are its own queue, never kept cards.
      *
      * <p>Read from the live bar on every rebuild rather than captured once. A belt rebuilds its
      * projection every time a card slides forward, and the bar it rebuilds from already carries
@@ -75,10 +76,10 @@ public final class BeltCardSource implements CardSource {
      * cooldown across the deal. A capture taken when the belt arrived would rewind the shovel's
      * clock on every deal instead.
      */
-    private List<Slot> nonPlantSlots() {
+    private List<Slot> keptSlots() {
         List<Slot> kept = new ArrayList<>();
         for (Slot slot : player.slots()) {
-            if (slot.kind() != Slot.Kind.PLANT) {
+            if (slot.kind() != Slot.Kind.PLANT && slot.kind() != Slot.Kind.ZOMBIE) {
                 kept.add(slot);
             }
         }
@@ -116,7 +117,7 @@ public final class BeltCardSource implements CardSource {
      * uses, so the sweep over the card is drawn by the same code.
      */
     private void tickKeptSlots(LevelServer level, LevelServer.ServerBridge bridge, int tickCount) {
-        for (Slot slot : nonPlantSlots()) {
+        for (Slot slot : keptSlots()) {
             int before = slot.cooldownLeft();
             slot.tick();
             boolean justBecameReady = before > 0 && slot.cooldownLeft() == 0;
@@ -235,7 +236,7 @@ public final class BeltCardSource implements CardSource {
         // holding a tool. The ranges only have to stay apart, so the kept cards start far above
         // any id a belt can hand out in a run (a million deliveries).
         int index = KEPT_SLOT_BASE;
-        for (Slot slot : nonPlantSlots()) {
+        for (Slot slot : keptSlots()) {
             rebuilt.add(new Slot(index++, slot.kind(), slot.defId(), slot.costSun(),
                     slot.cooldownLeft(), slot.usesLeft(), slot.cooldownTicks()));
         }

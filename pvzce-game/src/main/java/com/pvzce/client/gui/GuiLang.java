@@ -91,7 +91,7 @@ public final class GuiLang {
         found.add(DEFAULT_LOCALE);
         if (resources != null) {
             try {
-                for (String path : resources.listResources("assets").keySet()) {
+                for (String path : assetPaths(resources)) {
                     String[] parts = path.split("/");
                     // assets/<namespace>/lang/<locale>.json
                     if (parts.length == 4 && "lang".equals(parts[2]) && parts[3].endsWith(".json")) {
@@ -127,6 +127,18 @@ public final class GuiLang {
         return name == null || name.isBlank() ? wantedLocale : name;
     }
 
+    /**
+     * Every asset path the packs hold, none of them read: finding two language files must not load
+     * the whole art pack into memory.
+     */
+    private static java.util.Set<String> assetPaths(PvzceResourceManager resources) throws java.io.IOException {
+        java.util.Set<String> paths = new java.util.LinkedHashSet<>();
+        for (com.pvzce.common.resource.PvzcePack pack : resources.packs()) {
+            paths.addAll(pack.list("assets"));
+        }
+        return paths;
+    }
+
     private static Map<String, String> read(PvzceResourceManager resources, String wantedLocale) {
         if (resources == null) {
             return Map.of();
@@ -137,7 +149,7 @@ public final class GuiLang {
         // everything the pack omits.
         java.util.List<String> namespaces = new java.util.ArrayList<>();
         try {
-            for (String path : resources.listResources("assets").keySet()) {
+            for (String path : assetPaths(resources)) {
                 String[] parts = path.split("/");
                 if (parts.length > 3 && "lang".equals(parts[2])
                         && (wantedLocale + ".json").equals(parts[3]) && !namespaces.contains(parts[1])) {

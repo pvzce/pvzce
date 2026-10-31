@@ -191,6 +191,9 @@ public final class PvzcePackets {
     public static final int S2C_PACK_MANIFEST = S2C_BASE + 38;
     public static final int S2C_PACK_CHUNK = S2C_BASE + 39;
 
+    /** A move from the player flying Dr. Zomboss's machine in human versus. */
+    public static final int C2S_ZOMBOSS_COMMAND = 41;
+
     private record Definition(int id, ConnectionDirection direction, Class<? extends PvzcePacket> type,
                               Function<PacketByteBuf, ? extends PvzcePacket> decoder) {
     }
@@ -259,6 +262,9 @@ public final class PvzcePackets {
             def(C2S_PLACE_ZOMBIE, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.PlaceZombieC2S.class,
                     com.pvzce.common.network.packet.PlaceZombieC2S::decode),
+            def(C2S_ZOMBOSS_COMMAND, ConnectionDirection.SERVERBOUND,
+                    com.pvzce.common.network.packet.ZombossCommandC2S.class,
+                    com.pvzce.common.network.packet.ZombossCommandC2S::decode),
             def(C2S_RHYTHM_HIT, ConnectionDirection.SERVERBOUND,
                     com.pvzce.common.network.packet.RhythmHitC2S.class,
                     com.pvzce.common.network.packet.RhythmHitC2S::decode),

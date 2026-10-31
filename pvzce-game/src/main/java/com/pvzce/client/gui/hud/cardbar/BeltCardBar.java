@@ -1,7 +1,10 @@
 package com.pvzce.client.gui.hud.cardbar;
 
+import com.pvzce.api.content.LevelBelt;
+import com.pvzce.api.content.VersusData;
 import com.pvzce.api.util.Identifier;
 import com.pvzce.client.PvzceClient;
+import com.pvzce.common.PvzceIds;
 import com.pvzce.common.network.packet.SlotInfo;
 
 import java.util.ArrayList;
@@ -67,7 +70,7 @@ public final class BeltCardBar implements CardBar {
     /** Smallest belt card, in GUI pixels; below this the icon stops being readable. */
     private static final int BELT_MIN_CARD_HEIGHT = 34;
     /** The SunBank is HUD, not a card. */
-    private static final String SUN_CARD_ID = com.pvzce.common.PvzceIds.SUN.toString();
+    private static final String SUN_CARD_ID = PvzceIds.SUN.toString();
 
     private final Host host;
     private int viewportX;
@@ -98,7 +101,7 @@ public final class BeltCardBar implements CardBar {
 
     @Override
     public List<SlotInfo> toolSlots() {
-        // From the side, not from `slots()`: the belt deals plants and nothing else.
+        // From the side, not from `slots()`: a belt never deals a tool.
         return split(host.client().level().slots()).tools();
     }
 
@@ -108,9 +111,8 @@ public final class BeltCardBar implements CardBar {
         // and is the one the next delivery will sit behind. The chooser's "resources, then
         // plants, then tools" grouping would shuffle a queue.
         //
-        // Plants only. A belt's queue is plant cards by construction - the shipped belts list
-        // plants and the conveyor mutation rolls the player's plant cards - while the cards the
-        // server *kept* beside the belt (the shovel, the watering can) are not dealt and must
+        // The cards the belt deals: plants, or zombies on a versus level's zombie side. The cards
+        // the server *kept* beside the belt (the shovel, the watering can) are not dealt and must
         // not ride it: they are drawn fixed, outside the tray. See `sideSlots`.
         return split(host.client().level().slots()).belt();
     }
@@ -166,9 +168,9 @@ public final class BeltCardBar implements CardBar {
         return new Split(List.copyOf(belt), List.copyOf(side));
     }
 
-    /** True when a card is one the belt deals, i.e. a plant card. */
+    /** True when a card is one a belt deals: a plant, or a zombie on a versus side's belt. */
     static boolean isBeltCard(SlotInfo slot) {
-        return "plant".equals(slot.kind());
+        return "plant".equals(slot.kind()) || "zombie".equals(slot.kind());
     }
 
     @Override
@@ -376,8 +378,7 @@ public final class BeltCardBar implements CardBar {
         // mutation's belt was drawn one card wide, because a missing block answered "capacity 1".
         int capacity = mutationBeltCapacity(client);
         if (capacity <= 0) {
-            com.pvzce.api.content.LevelBelt belt = client.level().mechanicData(
-                    com.pvzce.common.PvzceIds.MECHANIC_CONVEYOR, com.pvzce.api.content.LevelBelt.class);
+            LevelBelt belt = levelBelt(client);
             capacity = belt == null ? 1 : belt.withPlayerCapacity(client.level().maxSeedSlots()).capacity();
         }
         capacity = Math.max(1, capacity);
@@ -407,6 +408,13 @@ public final class BeltCardBar implements CardBar {
             return 0F;
         }
         return SIDE_GAP + count * (cardWidth + cardGap) - cardGap;
+    }
+
+    /** The belt this bar draws: the player's own side's on a versus level, else the level's conveyor. */
+    private static LevelBelt levelBelt(PvzceClient client) {
+        VersusData versus = client.level().mechanicData(PvzceIds.MECHANIC_VERSUS, VersusData.class);
+        LevelBelt side = versus == null ? null : versus.beltFor(client.level().controlledTeamId()).orElse(null);
+        return side != null ? side : client.level().mechanicData(PvzceIds.MECHANIC_CONVEYOR, LevelBelt.class);
     }
 
     /** The capacity a mutation's belt reported, or 0 when no mutation is dealing the cards. */

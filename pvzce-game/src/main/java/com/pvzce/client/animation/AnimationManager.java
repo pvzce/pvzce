@@ -94,7 +94,7 @@ public final class AnimationManager {
                 && com.pvzce.client.renderer.ZombossArt.applies(entity)) {
             // The rig stays beside the roof while its combat anchor follows the lowered head.
             return new float[]{com.pvzce.common.PvzceConstants.ZOMBOSS_ANCHOR_X,
-                    com.pvzce.common.PvzceConstants.ZOMBOSS_ANCHOR_Y + height - lift};
+                    com.pvzce.common.PvzceConstants.ZOMBOSS_ANCHOR_Y - lift};
         }
         return new float[]{entity.visualCellX(),
                 entity.visualCellY() + height - lift + liquidDrop(entity)};
@@ -388,9 +388,9 @@ public final class AnimationManager {
      * ({@code PlantDamageArt}). One call site rather than two so the renderer cannot grow a third
      * answer to "what is this entity allowed to draw" somewhere else.
      */
-    private static BoneArt boneArtFor(com.pvzce.client.ClientEntity entity,
+    private BoneArt boneArtFor(com.pvzce.client.ClientEntity entity,
                                       com.pvzce.client.animation.ControllerModel model) {
-        BoneArt boss = com.pvzce.client.renderer.ZombossArt.forEntity(entity);
+        BoneArt boss = com.pvzce.client.renderer.ZombossArt.forEntity(entity, level);
         if (boss != null) return boss;
         BoneArt zombie = com.pvzce.client.renderer.EquipmentArt.forEntity(entity, model);
         return zombie != null ? zombie
