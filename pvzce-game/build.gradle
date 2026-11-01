@@ -102,6 +102,7 @@ tasks.named('test') {
     // this is what makes `-Ppvzce.smoke=pvzce.traceLocomotion=true` readable.
     testLogging.showStandardStreams = true
     jvmArgs nativeAccess
+    systemProperty 'pvzce.portraitHeight', project.property('portrait_height')
 
     // The documentation is a test input. DocumentedSymbolsTest, DocStatsTest and DocLedgerTest
     // read `docs/**` and AGENTS.md, but a doc-only edit used to leave this task UP-TO-DATE - so a
