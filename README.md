@@ -60,7 +60,7 @@ python3 tools/exclude_pvz_assets.py --dry-run   # 预览哪些原版素材会被
 python3 tools/exclude_pvz_assets.py             # 执行移动
 ```
 
-`local-assets/` 存在时，`stageLocalAssets` 任务会把它接回构建，`run`/`test` 照常带素材跑。
+`local-assets/` 存在时，资源处理会将其中的 `assets/` 合并进游戏；`run`、`test` 和构建出的游戏 JAR 都会使用这些素材，同路径优先采用本地版本。因此包含原版素材的构建产物不应公开分发。
 哪些素材算"原版"、逐条依据是什么，见 **[素材对照表](docs/素材对照表.md)**。
 
 自产的素材（原创角色立绘、程序生成的水面与粒子、四份 OFL 开源字体）**都在仓库里**，
